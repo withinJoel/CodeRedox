@@ -29,3 +29,16 @@
 .text-button { padding: 4px 0; border: 0; color: var(--accent); background: transparent; font-size: 12px; font-weight: 600; }
 .text-button:hover { text-decoration: underline; }
 .check-group { margin: 0; padding: 12px 13px 5px; color: var(--muted); background: #fff; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }.check-group span { display: block; padding-top: 6px; border-top: 1px solid var(--border-muted); }.check-group:first-of-type { padding-top: 8px; }.line-number { margin-left: 6px; padding: 1px 5px; border-radius: 10px; color: var(--accent); background: var(--accent-soft); font: 600 10px ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+/* Keep repository controls fixed and confine scrolling to the content panes. */
+.repo { height: calc(100vh - 48px); min-height: 0; display: grid; grid-template-rows: 67px 48px minmax(0, 1fr); overflow: hidden; }
+.repo-context, .repo-tabs { position: static; }
+.tab-layout { height: 100%; min-height: 0; margin: 0 auto; padding: 24px 0; align-items: stretch; overflow: hidden; }
+.tab-main { min-height: 0; overflow: auto; scrollbar-gutter: stable; }
+.tab-layout > .about-box { min-height: 0; max-height: 100%; align-self: stretch; overflow: auto; }
+
+.tab-main > .findings-workspace { height: 100%; min-height: 0; }
+.tab-main > .findings-workspace .finding-nav { height: 100%; overflow: auto; }
+.tab-main > .findings-workspace .finding-detail { height: 100%; min-height: 0; overflow: auto; }
+.tab-main > .findings-workspace .finding-list-panel { display: flex; flex-direction: column; }
+.tab-main > .findings-workspace .finding-list-items { max-height: none; min-height: 0; flex: 1; }
