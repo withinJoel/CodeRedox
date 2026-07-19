@@ -202,8 +202,14 @@ async function readReadme(root) {
   } catch { return '<div class="readme-empty"><span>⌁</span><p>No Markdown README was found in this project.</p></div>'; }
 }
 async function getGitInfo(root) {
-  try { const git = simpleGit(root); const [remotes, log] = await Promise.all([git.getRemotes(true), git.log({ maxCount: 1 })]); const remote = remotes[0]?.refs?.fetch || ''; return { provider: providerFor(remote), remote, commits: log.total || 0 }; } catch { return { provider: 'Local', remote: '', commits: 0 }; }
+  try {
+    const git = simpleGit(root);
+    const [remotes, log, branch] = await Promise.all([git.getRemotes(true), git.log({ maxCount: 1 }), git.branchLocal()]);
+    const remote = remotes[0]?.refs?.fetch || '';
+    return { provider: providerFor(remote), remote, commits: log.total || 0, branch: branch.current || 'HEAD', latest: log.latest ? { hash: log.latest.hash?.slice(0, 7), message: log.latest.message, date: log.latest.date } : null };
+  } catch { return { provider: 'Local', remote: '', commits: 0, branch: 'No branch', latest: null }; }
 }
+
 async function detectLicense(root) {
   try { const pkg = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8')); if (pkg.license) return { name: pkg.license, source: 'package.json' }; } catch { /* not a node project */ }
   for (const filename of ['LICENSE', 'LICENSE.md', 'LICENCE', 'LICENCE.md']) try {
