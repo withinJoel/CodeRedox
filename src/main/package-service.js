@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 const TIMEOUT_MS = 7000;
+const USAGE_FILE = /\.(?:[cm]?js|jsx|tsx?|php|py|java|go|rs)$/i;
 
 export async function discoverPackages(root, files) {
   const names = new Set(files.map(file => file.relative));
@@ -39,11 +40,15 @@ export async function discoverPackages(root, files) {
   for (const file of files.filter(item => path.basename(item.relative) === 'Cargo.toml')) {
     try { parseCargo(await fs.readFile(file.full, 'utf8')).forEach(item => add({ ...item, ecosystem: 'Rust', source: file.relative, section: 'dependency', registry: 'crates' })); } catch { /* unreadable Cargo manifest */ }
   }
-  return uniquePackages(packages).sort((left, right) => left.ecosystem.localeCompare(right.ecosystem) || left.name.localeCompare(right.name));
+  const usageSource = await readUsageSource(files);
+  return uniquePackages(packages).map(item => ({ ...item, usage: packageIsUsed(item, usageSource) ? 'used' : 'unused' })).sort((left, right) => left.ecosystem.localeCompare(right.ecosystem) || left.name.localeCompare(right.name));
 }
 
 export async function addLatestVersions(packages) {
-  return mapLimit(packages, 6, async item => ({ ...item, latest: await latestVersion(item).catch(() => null) }));
+  return mapLimit(packages, 6, async item => {
+    const release = await latestRelease(item).catch(() => null);
+    return { ...item, latest: release?.version || null, latestUpdatedAt: release?.updatedAt || null };
+  });
 }
 
 function parseMaven(source) {
@@ -61,14 +66,26 @@ function parseCargo(source) { let dependencies = false; return source.split(/\r?
 function xmlValue(source, tag) { return source.match(new RegExp(`<${tag}>\\s*([^<]+?)\\s*<\\/${tag}>`))?.[1]?.trim(); }
 function uniquePackages(packages) { const seen = new Set(); return packages.filter(item => { const key = `${item.ecosystem}:${item.name}:${item.version}:${item.source}`; if (seen.has(key)) return false; seen.add(key); return true; }); }
 
-async function latestVersion(item) {
-  if (item.registry === 'npm') return (await requestJson(`https://registry.npmjs.org/${encodeURIComponent(item.name)}/latest`)).version;
-  if (item.registry === 'packagist') { const data = await requestJson(`https://repo.packagist.org/p2/${item.name}.json`); return data.packages?.[item.name]?.find(entry => !/dev|alpha|beta|RC/i.test(entry.version || ''))?.version?.replace(/^v/, '') || null; }
-  if (item.registry === 'maven') { const params = new URLSearchParams({ q: `g:"${item.group}" AND a:"${item.artifact}"`, rows: '1', wt: 'json' }); return (await requestJson(`https://search.maven.org/solrsearch/select?${params}`)).response?.docs?.[0]?.latestVersion || null; }
-  if (item.registry === 'pypi') return (await requestJson(`https://pypi.org/pypi/${encodeURIComponent(item.name)}/json`)).info?.version || null;
-  if (item.registry === 'go') return (await requestJson(`https://proxy.golang.org/${item.name}/@latest`)).Version || null;
-  if (item.registry === 'crates') return (await requestJson(`https://crates.io/api/v1/crates/${encodeURIComponent(item.name)}`)).crate?.max_version || null;
+async function latestRelease(item) {
+  if (item.registry === 'npm') { const data = await requestJson(`https://registry.npmjs.org/${encodeURIComponent(item.name)}`); const version = data['dist-tags']?.latest; return version ? { version, updatedAt: data.time?.[version] || null } : null; }
+  if (item.registry === 'packagist') { const entry = (await requestJson(`https://repo.packagist.org/p2/${item.name}.json`)).packages?.[item.name]?.find(candidate => !/dev|alpha|beta|RC/i.test(candidate.version || '')); return entry ? { version: entry.version?.replace(/^v/, ''), updatedAt: entry.time || null } : null; }
+  if (item.registry === 'maven') { const params = new URLSearchParams({ q: `g:"${item.group}" AND a:"${item.artifact}"`, rows: '1', wt: 'json' }); const entry = (await requestJson(`https://search.maven.org/solrsearch/select?${params}`)).response?.docs?.[0]; return entry?.latestVersion ? { version: entry.latestVersion, updatedAt: entry.timestamp ? new Date(entry.timestamp).toISOString() : null } : null; }
+  if (item.registry === 'pypi') { const data = await requestJson(`https://pypi.org/pypi/${encodeURIComponent(item.name)}/json`); const version = data.info?.version; const uploads = data.releases?.[version] || []; return version ? { version, updatedAt: uploads.at(-1)?.upload_time_iso_8601 || null } : null; }
+  if (item.registry === 'go') { const data = await requestJson(`https://proxy.golang.org/${item.name}/@latest`); return data.Version ? { version: data.Version, updatedAt: data.Time || null } : null; }
+  if (item.registry === 'crates') { const entry = (await requestJson(`https://crates.io/api/v1/crates/${encodeURIComponent(item.name)}`)).crate; return entry?.max_version ? { version: entry.max_version, updatedAt: entry.updated_at || null } : null; }
   return null;
 }
+async function readUsageSource(files) { return (await Promise.all(files.filter(file => USAGE_FILE.test(file.relative)).map(file => fs.readFile(file.full, 'utf8').catch(() => '')))).join('\n'); }
+function packageIsUsed(item, source) {
+  if (!source) return false;
+  if (item.ecosystem === 'JavaScript') return new RegExp(`(?:from\\s*|require\\s*\\(|import\\s*\\()(['"])${escapeRegex(item.name)}(?:/[^'"]*)?\\1`).test(source);
+  if (item.ecosystem === 'PHP') return new RegExp(`\\buse\\s+${escapeRegex(item.name.split('/')[0]).replace(/\\\\/g, '\\\\')}`, 'i').test(source);
+  if (item.ecosystem === 'Java') return new RegExp(`\\bimport\\s+${escapeRegex(item.group)}\\.`).test(source);
+  if (item.ecosystem === 'Python') { const name = item.name.replace(/-/g, '_').split('.')[0]; return new RegExp(`\\b(?:from|import)\\s+${escapeRegex(name)}\\b`).test(source); }
+  if (item.ecosystem === 'Go') return new RegExp(`['"]${escapeRegex(item.name)}(?:/[^'"]*)?['"]`).test(source);
+  if (item.ecosystem === 'Rust') return new RegExp(`\\b(?:use|extern\\s+crate)\\s+${escapeRegex(item.name.replace(/-/g, '_'))}\\b`).test(source);
+  return false;
+}
+function escapeRegex(value) { return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 async function requestJson(url) { const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), TIMEOUT_MS); try { const response = await fetch(url, { signal: controller.signal, headers: { accept: 'application/json' } }); if (!response.ok) throw new Error(`Registry returned ${response.status}`); return response.json(); } finally { clearTimeout(timer); } }
 async function mapLimit(items, limit, mapper) { const results = []; let next = 0; await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => { while (next < items.length) { const index = next; next += 1; results[index] = await mapper(items[index]); } })); return results; }

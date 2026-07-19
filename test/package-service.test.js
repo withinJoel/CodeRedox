@@ -13,7 +13,13 @@ test('discovers package manifests across supported ecosystems', async () => {
     'pom.xml': '<project><properties><junit.version>5.10.0</junit.version></properties><dependencies><dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter</artifactId><version>${junit.version}</version></dependency></dependencies></project>',
     'requirements.txt': 'requests==2.31.0\n',
     'go.mod': 'module example.com/demo\n\nrequire github.com/pkg/errors v0.9.1\n',
-    'Cargo.toml': '[dependencies]\nserde = "1.0"\n'
+    'Cargo.toml': '[dependencies]\nserde = "1.0"\n',
+    'index.js': "import { z } from 'zod';\n",
+    'Example.java': 'import org.junit.jupiter.api.Test;\n',
+    'index.php': '<?php use GuzzleHttp\\Client;\n',
+    'main.py': 'import requests\n',
+    'main.go': 'import "github.com/pkg/errors"\n',
+    'main.rs': 'use serde::Serialize;\n'
   };
   try {
     await Promise.all(Object.entries(fixtures).map(([name, content]) => fs.writeFile(path.join(root, name), content)));
@@ -28,6 +34,15 @@ test('discovers package manifests across supported ecosystems', async () => {
       ['Python', 'requests', '2.31.0'],
       ['Rust', 'serde', '1.0']
     ]);
+    assert.deepEqual(Object.fromEntries(packages.map(item => [item.name, item.usage])), {
+      'github.com/pkg/errors': 'used',
+      'org.junit.jupiter:junit-jupiter': 'used',
+      vite: 'unused',
+      zod: 'used',
+      'guzzlehttp/guzzle': 'used',
+      requests: 'used',
+      serde: 'used'
+    });
   } finally {
     await fs.rm(root, { recursive: true, force: true });
   }
