@@ -50,6 +50,7 @@ ipcMain.handle('project:open', async (_event, suppliedPath) => {
   return projects.open(projectPath);
 });
 ipcMain.handle('scan:start', (_event, projectId) => projects.startScan(projectId));
+ipcMain.handle('project:get-packages', (_event, projectId, force) => projects.getPackages(projectId, force));
 ipcMain.handle('issue:get-fix-prompt', (_event, issueId) => projects.getFixPrompt(issueId));
 ipcMain.handle('issue:highlight', (_event, issueId) => projects.highlight(issueId));
 ipcMain.handle('window:minimize', () => windowRef?.minimize());
