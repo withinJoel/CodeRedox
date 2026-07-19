@@ -1,0 +1,30 @@
+.finding-nav-item.ignored { background: #f6f8fa; }
+.finding-nav-item.ignored > .icon { color: var(--green); }
+.finding-nav-item.ignored strong { color: var(--muted); text-decoration: line-through; }
+.finding-nav-item.ignored small { color: var(--green); font-family: inherit; font-weight: 600; }
+
+.finding-list-panel { padding: 0; }
+.finding-list-head { min-height: 88px; padding: 20px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--border-muted); }
+.finding-list-head h2 { margin: 0; font-size: 18px; letter-spacing: -.015em; }
+.finding-list-head p { margin: 6px 0 0; color: var(--muted); font-size: 12px; }
+.finding-list-head > span { min-width: 25px; padding: 3px 8px; border-radius: 2em; color: var(--muted); background: #d8dee4; font-size: 11px; font-weight: 600; text-align: center; }
+.finding-list-items { max-height: calc(100vh - 295px); overflow: auto; }
+.finding-list-item { width: 100%; min-height: 78px; padding: 14px 24px; display: grid; grid-template-columns: 21px minmax(0, 1fr) auto; gap: 11px; align-items: start; border: 0; border-bottom: 1px solid var(--border-muted); color: var(--fg); background: #fff; text-align: left; }
+.finding-list-item:hover { background: var(--subtle); }
+.finding-list-item .finding-icon { margin-top: 2px; color: var(--red); }
+.finding-list-item > span:nth-child(2) { min-width: 0; }
+.finding-list-item strong, .finding-list-item small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.finding-list-item strong { font-size: 13px; }
+.finding-list-item small { margin-top: 5px; color: var(--muted); font-size: 11px; }
+.finding-list-item small code { color: var(--accent); font: inherit; }
+.finding-list-item em { padding-top: 2px; color: var(--accent); font-size: 11px; font-style: normal; font-weight: 600; }
+.finding-list-item.ignored { background: #f6f8fa; }
+.finding-list-item.ignored .finding-icon, .finding-list-item.ignored em { color: var(--green); }
+.finding-list-item.ignored strong { color: var(--muted); text-decoration: line-through; }
+
+.finding-detail-actions { margin-top: 20px; padding-top: 20px; display: flex; align-items: center; gap: 12px; border-top: 1px solid var(--border-muted); }
+.btn-ignore { border-color: #cf222e55; color: #cf222e; background: #ffebe9; }
+.btn-ignore:hover { border-color: #cf222e; background: #ffddd8; }
+.btn-ignored { border-color: #1a7f3755; color: #116329; background: #dafbe1; }
+.text-button { padding: 4px 0; border: 0; color: var(--accent); background: transparent; font-size: 12px; font-weight: 600; }
+.text-button:hover { text-decoration: underline; }
