@@ -1,0 +1,41 @@
+{
+  "name": "code-redox",
+  "version": "1.0.0",
+  "description": "A desktop utility for finding AI coding slop.",
+  "type": "module",
+  "main": "src/main/index.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "package": "electron-builder",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "electron-store": "^10.1.0",
+    "get-folder-size": "^5.0.0",
+    "ignore": "^7.0.5",
+    "jscpd": "^4.0.5",
+    "knip": "^5.67.0",
+    "linguist-js": "^2.9.2",
+    "markdown-it": "^14.1.0",
+    "sanitize-html": "^2.17.0",
+    "shiki": "^3.12.2",
+    "simple-git": "^3.27.0",
+    "slop-scan": "^0.1.0",
+    "spdx-license-list": "^6.9.0"
+  },
+  "devDependencies": {
+    "electron": "^37.2.3",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.coderedox.app",
+    "productName": "Code Redox",
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "mac": { "category": "public.app-category.developer-tools" },
+    "win": { "target": "nsis", "executableName": "Code Redox" }
+  }
+}
