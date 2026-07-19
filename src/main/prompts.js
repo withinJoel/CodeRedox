@@ -19,6 +19,8 @@ const templates = {
     "Correct the condition in `{file}:{line}`. {reason} Confirm the intended boolean behavior with a focused test and make the smallest change that preserves the surrounding control flow.",
   "error-handling":
     "Fix the error handling at `{file}:{line}`. {reason} Handle the expected failure deliberately, add context where useful, and do not silently discard failures unless that is an explicitly documented product decision.",
+  secrets:
+    "Remove the hard-coded credential at `{file}:{line}`. {reason} Move it to an appropriate secret manager or environment variable, rotate the exposed value immediately, and ensure no secret value remains in source, history, logs, or generated artifacts.",
   "unsafe-operations":
     "Review the dynamic operation in `{file}:{line}`. {reason} Replace it with a safer explicit API where possible; otherwise tightly validate inputs and retain the smallest necessary execution boundary.",
   "package-integrity":

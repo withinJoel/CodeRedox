@@ -44,3 +44,13 @@ test('flags an empty catch but not a one-line recovery', async () => {
   assert.equal(empty.length, 1);
   assert.equal(recovered.length, 0);
 });
+
+test('finds common tokens and hard-coded secret variables without exposing values', async () => {
+  const issues = await scan('secrets', `
+const OPENAI_API_KEY = 'sk-proj-abcdefghijklmnopqrstuvwxyz1234567890';
+const servicePassword = 'mY-S3cret-value-123';
+const API_KEY = process.env.API_KEY;
+`);
+  assert.deepEqual(issues.map(issue => issue.line), [2, 3]);
+  assert.equal(issues[0].symbol, 'OpenAI API key');
+});

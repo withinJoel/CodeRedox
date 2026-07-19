@@ -13,7 +13,7 @@ import simpleGit from 'simple-git';
 import { buildPrompt } from './prompts.js';
 
 const EXCLUDED = new Set(['node_modules', '.git', 'dist', 'build', '.next', 'coverage']);
-const SCAN_VERSION = 3;
+const SCAN_VERSION = 4;
 const LANGUAGE_BY_EXTENSION = {
   js: ['JavaScript', '#f1e05a'], mjs: ['JavaScript', '#f1e05a'], cjs: ['JavaScript', '#f1e05a'],
   ts: ['TypeScript', '#3178c6'], tsx: ['TypeScript', '#3178c6'], jsx: ['JavaScript', '#f1e05a'],
@@ -33,8 +33,9 @@ const CHECKS = [
   { id: 'complex-logic', label: 'Complex Logic', command: 'built-in', group: 'Maintainability' },
   { id: 'logic-conditions', label: 'Logic Conditions', command: 'built-in', group: 'Reliability' },
   { id: 'error-handling', label: 'Error Handling', command: 'built-in', group: 'Reliability' },
-  { id: 'unsafe-operations', label: 'Unsafe Operations', command: 'built-in', group: 'Advanced patterns' },
-  { id: 'package-integrity', label: 'Package Integrity', command: 'slop-scan', group: 'Advanced patterns' }
+  { id: 'secrets', label: 'Secrets', command: 'built-in', group: 'Security' },
+  { id: 'unsafe-operations', label: 'Unsafe Operations', command: 'built-in', group: 'Runtime safety' },
+  { id: 'package-integrity', label: 'Package Integrity', command: 'slop-scan', group: 'Runtime safety' }
 ];
 
 const escapeHtml = (value = '') => String(value).replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[c]);
@@ -79,6 +80,7 @@ export class ProjectService {
       'complex-logic': () => this.runCodeQuality(project, 'complex-logic'),
       'logic-conditions': () => this.runCodeQuality(project, 'logic-conditions'),
       'error-handling': () => this.runCodeQuality(project, 'error-handling'),
+      secrets: () => this.runCodeQuality(project, 'secrets'),
       'unsafe-operations': () => this.runCodeQuality(project, 'unsafe-operations'),
       'package-integrity': () => this.runPackageIntegrity(project)
     };
@@ -141,7 +143,10 @@ export class ProjectService {
     await runNodeScriptStreaming('code-quality-worker.js', [project.path, JSON.stringify(project.files.map(file => file.relative)), checkId], async line => {
       const event = safeJson(line, null);
       if (event?.type !== 'issue') return;
-      const issue = this.issue(project, checkId, { ...event.issue, snippet: await snippetAt(project.path, event.issue.file, event.issue.line) });
+      const snippet = checkId === 'secrets'
+        ? await redactedSnippetAt(project.path, event.issue.file, event.issue.line)
+        : await snippetAt(project.path, event.issue.file, event.issue.line);
+      const issue = this.issue(project, checkId, { ...event.issue, snippet });
       issues.push(issue);
       this.send('scan:results', { projectId: project.id, checkId, issues: [issue], append: true });
     });
@@ -185,7 +190,7 @@ async function listFiles(root) {
     for (const entry of await fs.readdir(directory, { withFileTypes: true })) {
       if (EXCLUDED.has(entry.name)) continue;
       const full = path.join(directory, entry.name); const relative = path.relative(root, full).replaceAll('\\', '/');
-      if (ig.ignores(relative)) continue;
+      if (ig.ignores(relative) && !isPotentialSecretFile(relative)) continue;
       if (entry.isDirectory()) await walk(full); else if (entry.isFile()) files.push({ full, relative, extension: path.extname(entry.name).slice(1).toLowerCase() });
     }
   }
@@ -269,6 +274,22 @@ function runNodeScriptStreaming(script, args, onLine) {
 }
 function safeJson(value, fallback) { try { return JSON.parse(value); } catch { const start = value.indexOf('{'); const array = value.indexOf('['); const index = start < 0 ? array : array < 0 ? start : Math.min(start, array); try { return JSON.parse(value.slice(index)); } catch { return fallback; } } }
 async function snippetAt(root, relative, line) { try { const source = await fs.readFile(path.join(root, relative), 'utf8'); return source.split(/\r?\n/).slice(Math.max(0, line - 3), line + 2).join('\n'); } catch { return ''; } }
+async function redactedSnippetAt(root, relative, line) {
+  try {
+    const source = await fs.readFile(path.join(root, relative), 'utf8');
+    const lines = source.split(/\r?\n/);
+    const start = Math.max(0, line - 3);
+    const end = line + 2;
+    if (/-----BEGIN(?: [A-Z]+)? PRIVATE KEY-----/.test(lines[line - 1] || '')) return '[Sensitive private key redacted]';
+    return lines.slice(start, end).map((entry, index) => start + index === line - 1 ? redactSecretLine(entry) : entry).join('\n');
+  } catch { return ''; }
+}
+function redactSecretLine(line) {
+  return line
+    .replace(/((?:api[_-]?key|token|secret|password|private[_-]?key|credential)[\w.-]*\s*[:=]\s*)(['"]?)[^'"\s,}]+\2/ig, '$1[REDACTED]')
+    .replace(/\b(?:sk-(?:proj-|svcacct-)?|gh[pousr]_|github_pat_|glpat-|xox[baprs]-|AKIA|ASIA|AIza|npm_|SG\.)[A-Za-z0-9_./=-]+/g, '[REDACTED]');
+}
+function isPotentialSecretFile(relative) { return /(?:^|\/)(?:\.env(?:\..*)?|\.npmrc|\.pypirc|id_rsa|credentials(?:\.[\w-]+)?|secrets?(?:\.[\w-]+)?)$/i.test(relative); }
 async function findJson(folder) { const names = await fs.readdir(folder, { recursive: true }); for (const name of names) if (String(name).endsWith('.json')) return safeJson(await fs.readFile(path.join(folder, name), 'utf8'), null); return null; }
 function normaliseKnip(json, project, make) {
   if (!json) return []; const issues = [];

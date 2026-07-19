@@ -4,18 +4,8 @@ import path from 'node:path';
 const [root, filesArg, rule] = process.argv.slice(2);
 const files = JSON.parse(filesArg);
 const SOURCE_FILE = /\.(?:[cm]?js|jsx|tsx?|mjs|cjs)$/i;
+const SECRET_FILE = /(?:\.(?:[cm]?js|jsx|tsx?|mjs|cjs|json|ya?ml|toml|ini|conf|config)$|(?:^|\/)(?:\.env(?:\..*)?|\.npmrc|\.pypirc|id_rsa|credentials(?:\.[\w-]+)?|secrets?(?:\.[\w-]+)?))$/i;
 const emit = issue => process.stdout.write(`${JSON.stringify({ type: 'issue', issue })}\n`);
-
-for (const file of files) {
-  if (!SOURCE_FILE.test(file)) continue;
-  try {
-    const text = await fs.readFile(path.join(root, file), 'utf8');
-    const lines = text.split(/\r?\n/);
-    for (const issue of inspect(rule, lines)) emit({ file, ...issue });
-  } catch {
-    // Skip files that cannot be decoded as source text.
-  }
-}
 
 function inspect(ruleName, lines) {
   switch (ruleName) {
@@ -26,9 +16,49 @@ function inspect(ruleName, lines) {
     case 'complex-logic': return findComplexLogic(lines);
     case 'logic-conditions': return findLogicConditions(lines);
     case 'error-handling': return findEmptyCatchBlocks(lines);
+    case 'secrets': return findSecrets(lines);
     case 'unsafe-operations': return findUnsafeOperations(lines);
     default: return [];
   }
+}
+
+function findSecrets(lines) {
+  const findings = [];
+  const seen = new Set();
+  const add = (line, symbol, reason) => {
+    const key = `${line}:${symbol}`;
+    if (!seen.has(key)) { seen.add(key); findings.push({ line, symbol, reason }); }
+  };
+  lines.forEach((line, index) => {
+    const lineNo = index + 1;
+    if (/-----BEGIN(?: [A-Z]+)? PRIVATE KEY-----/.test(line)) add(lineNo, 'Private key', 'Private key material is embedded in the project.');
+    let matchedSignature = false;
+    for (const signature of secretSignatures) {
+      if (signature.pattern.test(line)) { matchedSignature = true; add(lineNo, signature.name, `${signature.name} appears to be hard-coded.`); }
+    }
+    const assignment = line.match(/\b([A-Z][A-Z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|PRIVATE_KEY)[A-Z0-9_]*)\b\s*[:=]\s*['"]?([^'"\s,}#]+)['"]?/i);
+    if (!matchedSignature && assignment && looksLikeSecretValue(assignment[2])) add(lineNo, assignment[1], `Sensitive variable ${assignment[1]} has a hard-coded value.`);
+  });
+  return findings;
+}
+
+const secretSignatures = [
+  { name: 'OpenAI API key', pattern: /\bsk-(?:proj-|svcacct-)?[A-Za-z0-9_-]{20,}\b/ },
+  { name: 'GitHub token', pattern: /\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{20,})\b/ },
+  { name: 'GitLab token', pattern: /\bglpat-[A-Za-z0-9_-]{20,}\b/ },
+  { name: 'Slack token', pattern: /\bxox[baprs]-[A-Za-z0-9-]{20,}\b/ },
+  { name: 'AWS access key', pattern: /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/ },
+  { name: 'Google API key', pattern: /\bAIza[A-Za-z0-9_-]{35}\b/ },
+  { name: 'Stripe secret key', pattern: /\bsk_(?:live|test)_[A-Za-z0-9]{16,}\b/ },
+  { name: 'npm token', pattern: /\bnpm_[A-Za-z0-9]{30,}\b/ },
+  { name: 'SendGrid API key', pattern: /\bSG\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\b/ },
+  { name: 'Twilio API key', pattern: /\bSK[a-f0-9]{32}\b/i }
+];
+
+function looksLikeSecretValue(value) {
+  if (!value || value.length < 8) return false;
+  if (/^(?:\$\{|process\.env(?:\.|$)|env\.|your[_-]?|example|placeholder|replace|change[_-]?me|todo|null|undefined)/i.test(value)) return false;
+  return /[A-Za-z]/.test(value) && (/[0-9]/.test(value) || /[._\-/+=]/.test(value) || value.length >= 16);
 }
 
 function findDebugCode(lines) {
@@ -175,4 +205,15 @@ function conditionFor(line) {
     }
   }
   return '';
+}
+
+for (const file of files) {
+  if (!(SOURCE_FILE.test(file) || (rule === 'secrets' && SECRET_FILE.test(file)))) continue;
+  try {
+    const text = await fs.readFile(path.join(root, file), 'utf8');
+    const lines = text.split(/\r?\n/);
+    for (const issue of inspect(rule, lines)) emit({ file, ...issue });
+  } catch {
+    // Skip files that cannot be decoded as source text.
+  }
 }
