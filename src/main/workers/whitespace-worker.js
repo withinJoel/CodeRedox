@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-const [root, filesArg] = process.argv.slice(2); const files = JSON.parse(filesArg);
+const [root, filesArg] = process.argv.slice(2);
+const files = JSON.parse(await fs.readFile(filesArg, 'utf8'));
 const report = issue => process.stdout.write(`${JSON.stringify({ type: 'issue', issue })}\n`);
 for (const file of files) {
   if (!/\.(?:[cm]?js|jsx|tsx?|py|java|go|rs|css|html|md|json|ya?ml|sh)$/i.test(file)) continue;

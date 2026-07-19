@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 const [root, filesArg, rule] = process.argv.slice(2);
-const files = JSON.parse(filesArg);
+const files = JSON.parse(await fs.readFile(filesArg, 'utf8'));
 const SOURCE_FILE = /\.(?:[cm]?js|jsx|tsx?|mjs|cjs)$/i;
 const SECRET_FILE = /(?:\.(?:[cm]?js|jsx|tsx?|mjs|cjs|json|ya?ml|toml|ini|conf|config)$|(?:^|\/)(?:\.env(?:\..*)?|\.npmrc|\.pypirc|id_rsa|credentials(?:\.[\w-]+)?|secrets?(?:\.[\w-]+)?))$/i;
 const emit = issue => process.stdout.write(`${JSON.stringify({ type: 'issue', issue })}\n`);

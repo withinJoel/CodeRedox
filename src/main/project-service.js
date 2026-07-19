@@ -14,7 +14,7 @@ import { buildPrompt } from './prompts.js';
 import { addLatestVersions, discoverPackages } from './package-service.js';
 
 const EXCLUDED = new Set(['node_modules', '.git', 'dist', 'build', '.next', 'coverage']);
-const SCAN_VERSION = 4;
+const SCAN_VERSION = 5;
 const LANGUAGE_BY_EXTENSION = {
   js: ['JavaScript', '#f1e05a'], mjs: ['JavaScript', '#f1e05a'], cjs: ['JavaScript', '#f1e05a'],
   ts: ['TypeScript', '#3178c6'], tsx: ['TypeScript', '#3178c6'], jsx: ['JavaScript', '#f1e05a'],
@@ -85,6 +85,7 @@ export class ProjectService {
       'unsafe-operations': () => this.runCodeQuality(project, 'unsafe-operations'),
       'package-integrity': () => this.runPackageIntegrity(project)
     };
+    let scanHadErrors = false;
     const resultPairs = await Promise.all(CHECKS.map(async check => {
       this.progress(projectId, check.id, 'running');
       try {
@@ -93,6 +94,7 @@ export class ProjectService {
         this.send('scan:results', { projectId, checkId: check.id, issues });
         return [check.id, issues];
       } catch (error) {
+        scanHadErrors = true;
         this.progress(projectId, check.id, 'error', 0, error.message);
         return [check.id, []];
       }
@@ -101,11 +103,13 @@ export class ProjectService {
     const previousIds = new Set(Object.values(project.cached?.results || {}).flat().map(issue => issue.id));
     const currentIds = new Set(Object.values(results).flat().map(issue => issue.id));
     const fixedCount = [...previousIds].filter(id => !currentIds.has(id)).length;
-    project.cached = { scanVersion: SCAN_VERSION, fingerprint, lastScan: new Date().toISOString(), results, fixedCount };
+    if (!scanHadErrors) {
+      project.cached = { scanVersion: SCAN_VERSION, fingerprint, lastScan: new Date().toISOString(), results, fixedCount };
+      await this.writeCache(projectId, project.cached);
+    }
     this.indexIssues(results);
-    await this.writeCache(projectId, project.cached);
-    this.send('scan:results', { projectId, results, complete: true, fixedCount });
-    return { cached: false, results, fixedCount };
+    this.send('scan:results', { projectId, results, complete: true, fixedCount, incomplete: scanHadErrors });
+    return { cached: false, results, fixedCount, incomplete: scanHadErrors };
   }
 
   async getPackages(projectId, force = false) {
@@ -141,7 +145,7 @@ export class ProjectService {
   }
   async runWhitespace(project) {
     const issues = [];
-    await runNodeScriptStreaming('whitespace-worker.js', [project.path, JSON.stringify(project.files.map(file => file.relative))], async line => {
+    await runProjectWorker('whitespace-worker.js', project, [], async line => {
       const event = safeJson(line, null);
       if (event?.type !== 'issue') return;
       const issue = this.issue(project, 'whitespace', { ...event.issue, snippet: await snippetAt(project.path, event.issue.file, event.issue.line) });
@@ -152,7 +156,7 @@ export class ProjectService {
   }
   async runCodeQuality(project, checkId) {
     const issues = [];
-    await runNodeScriptStreaming('code-quality-worker.js', [project.path, JSON.stringify(project.files.map(file => file.relative)), checkId], async line => {
+    await runProjectWorker('code-quality-worker.js', project, [checkId], async line => {
       const event = safeJson(line, null);
       if (event?.type !== 'issue') return;
       const snippet = checkId === 'secrets'
@@ -283,6 +287,16 @@ function runNodeScriptStreaming(script, args, onLine) {
     child.on('error', reject);
     child.on('close', async code => { if (buffer.trim()) chain = chain.then(() => onLine(buffer)); await chain; code === 0 ? resolve() : reject(new Error(stderr || `Worker exited ${code}`)); });
   });
+}
+async function runProjectWorker(script, project, args, onLine) {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'code-redox-files-'));
+  const fileListPath = path.join(directory, 'files.json');
+  try {
+    await fs.writeFile(fileListPath, JSON.stringify(project.files.map(file => file.relative)), 'utf8');
+    return await runNodeScriptStreaming(script, [project.path, fileListPath, ...args], onLine);
+  } finally {
+    await fs.rm(directory, { recursive: true, force: true });
+  }
 }
 function safeJson(value, fallback) { try { return JSON.parse(value); } catch { const start = value.indexOf('{'); const array = value.indexOf('['); const index = start < 0 ? array : array < 0 ? start : Math.min(start, array); try { return JSON.parse(value.slice(index)); } catch { return fallback; } } }
 async function snippetAt(root, relative, line) { try { const source = await fs.readFile(path.join(root, relative), 'utf8'); return source.split(/\r?\n/).slice(Math.max(0, line - 3), line + 2).join('\n'); } catch { return ''; } }

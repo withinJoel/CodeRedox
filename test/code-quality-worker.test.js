@@ -11,7 +11,9 @@ async function scan(rule, source) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'code-redox-rule-'));
   try {
     await fs.writeFile(path.join(root, 'sample.js'), source);
-    const result = spawnSync(process.execPath, [worker, root, JSON.stringify(['sample.js']), rule], { encoding: 'utf8' });
+    const fileList = path.join(root, 'files.json');
+    await fs.writeFile(fileList, JSON.stringify(['sample.js']));
+    const result = spawnSync(process.execPath, [worker, root, fileList, rule], { encoding: 'utf8' });
     assert.equal(result.status, 0, result.stderr);
     return result.stdout.trim() ? result.stdout.trim().split(/\r?\n/).map(line => JSON.parse(line).issue) : [];
   } finally {
