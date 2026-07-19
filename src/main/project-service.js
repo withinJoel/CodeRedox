@@ -13,6 +13,7 @@ import simpleGit from 'simple-git';
 import { buildPrompt } from './prompts.js';
 
 const EXCLUDED = new Set(['node_modules', '.git', 'dist', 'build', '.next', 'coverage']);
+const SCAN_VERSION = 3;
 const LANGUAGE_BY_EXTENSION = {
   js: ['JavaScript', '#f1e05a'], mjs: ['JavaScript', '#f1e05a'], cjs: ['JavaScript', '#f1e05a'],
   ts: ['TypeScript', '#3178c6'], tsx: ['TypeScript', '#3178c6'], jsx: ['JavaScript', '#f1e05a'],
@@ -22,10 +23,18 @@ const LANGUAGE_BY_EXTENSION = {
   cpp: ['C++', '#f34b7d'], c: ['C', '#555555'], md: ['Markdown', '#083fa1'], json: ['JSON', '#292929'], sh: ['Shell', '#89e051']
 };
 const CHECKS = [
-  { id: 'dead-code', label: 'Dead Code', command: 'knip' },
-  { id: 'duplicate-code', label: 'Duplicate Code', command: 'jscpd' },
-  { id: 'whitespace', label: 'Whitespace', command: 'built-in' },
-  { id: 'package-integrity', label: 'Package Integrity', command: 'slop-scan' }
+  { id: 'whitespace', label: 'Whitespace', command: 'built-in', group: 'Foundations' },
+  { id: 'debug-code', label: 'Debug Code', command: 'built-in', group: 'Foundations' },
+  { id: 'todo-debt', label: 'TODO Debt', command: 'built-in', group: 'Foundations' },
+  { id: 'dead-code', label: 'Dead Code', command: 'knip', group: 'Clean code' },
+  { id: 'duplicate-code', label: 'Duplicate Code', command: 'jscpd', group: 'Clean code' },
+  { id: 'magic-values', label: 'Magic Values', command: 'built-in', group: 'Clean code' },
+  { id: 'long-functions', label: 'Long Functions', command: 'built-in', group: 'Maintainability' },
+  { id: 'complex-logic', label: 'Complex Logic', command: 'built-in', group: 'Maintainability' },
+  { id: 'logic-conditions', label: 'Logic Conditions', command: 'built-in', group: 'Reliability' },
+  { id: 'error-handling', label: 'Error Handling', command: 'built-in', group: 'Reliability' },
+  { id: 'unsafe-operations', label: 'Unsafe Operations', command: 'built-in', group: 'Advanced patterns' },
+  { id: 'package-integrity', label: 'Package Integrity', command: 'slop-scan', group: 'Advanced patterns' }
 ];
 
 const escapeHtml = (value = '') => String(value).replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[c]);
@@ -53,7 +62,7 @@ export class ProjectService {
     const project = this.projects.get(projectId);
     if (!project) throw new Error('Open the project before scanning it.');
     const fingerprint = await fileFingerprint(project.files);
-    if (project.cached?.fingerprint === fingerprint && project.cached?.results) {
+    if (project.cached?.scanVersion === SCAN_VERSION && project.cached?.fingerprint === fingerprint && project.cached?.results) {
       this.send('scan:progress', { projectId, checkId: 'all', status: 'done', cached: true });
       this.send('scan:results', { projectId, results: project.cached.results, cached: true, fixedCount: project.cached.fixedCount || 0 });
       return { cached: true, results: project.cached.results, fixedCount: project.cached.fixedCount || 0 };
@@ -63,6 +72,14 @@ export class ProjectService {
       'dead-code': () => this.runKnip(project),
       'duplicate-code': () => this.runJscpd(project),
       whitespace: () => this.runWhitespace(project),
+      'debug-code': () => this.runCodeQuality(project, 'debug-code'),
+      'todo-debt': () => this.runCodeQuality(project, 'todo-debt'),
+      'magic-values': () => this.runCodeQuality(project, 'magic-values'),
+      'long-functions': () => this.runCodeQuality(project, 'long-functions'),
+      'complex-logic': () => this.runCodeQuality(project, 'complex-logic'),
+      'logic-conditions': () => this.runCodeQuality(project, 'logic-conditions'),
+      'error-handling': () => this.runCodeQuality(project, 'error-handling'),
+      'unsafe-operations': () => this.runCodeQuality(project, 'unsafe-operations'),
       'package-integrity': () => this.runPackageIntegrity(project)
     };
     const resultPairs = await Promise.all(CHECKS.map(async check => {
@@ -81,7 +98,7 @@ export class ProjectService {
     const previousIds = new Set(Object.values(project.cached?.results || {}).flat().map(issue => issue.id));
     const currentIds = new Set(Object.values(results).flat().map(issue => issue.id));
     const fixedCount = [...previousIds].filter(id => !currentIds.has(id)).length;
-    project.cached = { fingerprint, lastScan: new Date().toISOString(), results, fixedCount };
+    project.cached = { scanVersion: SCAN_VERSION, fingerprint, lastScan: new Date().toISOString(), results, fixedCount };
     this.indexIssues(results);
     await this.writeCache(projectId, project.cached);
     this.send('scan:results', { projectId, results, complete: true, fixedCount });
@@ -116,6 +133,17 @@ export class ProjectService {
       const issue = this.issue(project, 'whitespace', { ...event.issue, snippet: await snippetAt(project.path, event.issue.file, event.issue.line) });
       issues.push(issue);
       this.send('scan:results', { projectId: project.id, checkId: 'whitespace', issues: [issue], append: true });
+    });
+    return issues;
+  }
+  async runCodeQuality(project, checkId) {
+    const issues = [];
+    await runNodeScriptStreaming('code-quality-worker.js', [project.path, JSON.stringify(project.files.map(file => file.relative)), checkId], async line => {
+      const event = safeJson(line, null);
+      if (event?.type !== 'issue') return;
+      const issue = this.issue(project, checkId, { ...event.issue, snippet: await snippetAt(project.path, event.issue.file, event.issue.line) });
+      issues.push(issue);
+      this.send('scan:results', { projectId: project.id, checkId, issues: [issue], append: true });
     });
     return issues;
   }
