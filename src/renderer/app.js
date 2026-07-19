@@ -1,32 +1,284 @@
-const app = document.querySelector('#app');
-const state = { project: null, results: {}, activeCheck: 'all', activeView: 'findings', progress: {}, recent: [], scanning: false, loadingLabel: '', fixedCount: 0 };
+const app = document.querySelector("#app");
+const state = {
+  project: null,
+  results: {},
+  activeCheck: "all",
+  activeView: "findings",
+  progress: {},
+  recent: [],
+  scanning: false,
+  loadingLabel: "",
+  fixedCount: 0,
+};
 
 const icon = (name, size = 16) => {
-  const paths = { mark: '<path d="M12 2.5 21 6v5.5c0 4.8-3.1 8.7-9 10-5.9-1.3-9-5.2-9-10V6Z"/><path d="m8 12 2.6 2.6L16.5 8.7"/>', folder: '<path d="M3 6.5h6l1.8 2H21v9.2a2.3 2.3 0 0 1-2.3 2.3H5.3A2.3 2.3 0 0 1 3 17.7Z"/><path d="M3 6.5V5.3A2.3 2.3 0 0 1 5.3 3H9l1.8 2h6.9A2.3 2.3 0 0 1 20 7.3v1.2"/>', code: '<path d="m8 7-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/>', copy: '<rect x="8" y="8" width="11" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0 2 2h2"/>', check: '<path d="m5 12 4.2 4.2L19 6.5"/>', issue: '<circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/>', book: '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v17H6.5A2.5 2.5 0 0 0 4 22.5Z"/><path d="M4 5.5V20"/>', graph: '<path d="M4 19V5M4 19h17"/><path d="m7 15 4-4 3 2 5-6"/>', chevron: '<path d="m14.5 5-7 7 7 7"/>', spinner: '<path d="M20 12a8 8 0 1 1-2.34-5.66"/>', arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>', github: '<path d="M12 2.8a9.2 9.2 0 0 0-2.9 17.9c.46.08.63-.2.63-.45v-1.76c-2.57.56-3.1-1.08-3.1-1.08-.42-1.08-1.03-1.36-1.03-1.36-.84-.58.07-.57.07-.57.93.07 1.42.96 1.42.96.83 1.42 2.18 1 2.71.77.08-.6.32-1 .59-1.23-2.05-.23-4.2-1.03-4.2-4.57 0-1.01.36-1.84.96-2.49-.1-.23-.42-1.17.09-2.44 0 0 .78-.25 2.54.95a8.8 8.8 0 0 1 4.63 0c1.76-1.2 2.54-.95 2.54-.95.5 1.27.19 2.21.1 2.44.59.65.95 1.48.95 2.49 0 3.55-2.16 4.33-4.22 4.56.33.29.63.86.63 1.74v2.58c0 .25.17.54.64.45A9.2 9.2 0 0 0 12 2.8Z"/>' };
+  const paths = {
+    mark: '<path d="M12 2.5 21 6v5.5c0 4.8-3.1 8.7-9 10-5.9-1.3-9-5.2-9-10V6Z"/><path d="m8 12 2.6 2.6L16.5 8.7"/>',
+    folder:
+      '<path d="M3 6.5h6l1.8 2H21v9.2a2.3 2.3 0 0 1-2.3 2.3H5.3A2.3 2.3 0 0 1 3 17.7Z"/><path d="M3 6.5V5.3A2.3 2.3 0 0 1 5.3 3H9l1.8 2h6.9A2.3 2.3 0 0 1 20 7.3v1.2"/>',
+    code: '<path d="m8 7-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/>',
+    copy: '<rect x="8" y="8" width="11" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0 2 2h2"/>',
+    check: '<path d="m5 12 4.2 4.2L19 6.5"/>',
+    issue: '<circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/>',
+    book: '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v17H6.5A2.5 2.5 0 0 0 4 22.5Z"/><path d="M4 5.5V20"/>',
+    graph: '<path d="M4 19V5M4 19h17"/><path d="m7 15 4-4 3 2 5-6"/>',
+    chevron: '<path d="m14.5 5-7 7 7 7"/>',
+    spinner: '<path d="M20 12a8 8 0 1 1-2.34-5.66"/>',
+    arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+    github:
+      '<path d="M12 2.8a9.2 9.2 0 0 0-2.9 17.9c.46.08.63-.2.63-.45v-1.76c-2.57.56-3.1-1.08-3.1-1.08-.42-1.08-1.03-1.36-1.03-1.36-.84-.58.07-.57.07-.57.93.07 1.42.96 1.42.96.83 1.42 2.18 1 2.71.77.08-.6.32-1 .59-1.23-2.05-.23-4.2-1.03-4.2-4.57 0-1.01.36-1.84.96-2.49-.1-.23-.42-1.17.09-2.44 0 0 .78-.25 2.54.95a8.8 8.8 0 0 1 4.63 0c1.76-1.2 2.54-.95 2.54-.95.5 1.27.19 2.21.1 2.44.59.65.95 1.48.95 2.49 0 3.55-2.16 4.33-4.22 4.56.33.29.63.86.63 1.74v2.58c0 .25.17.54.64.45A9.2 9.2 0 0 0 12 2.8Z"/>',
+  };
   return `<svg class="icon" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${paths[name] || paths.code}</svg>`;
 };
-const esc = value => String(value || '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
-const bytes = value => value < 1024 ? `${value} B` : value < 1048576 ? `${(value / 1024).toFixed(1)} KB` : `${(value / 1048576).toFixed(1)} MB`;
-const timeAgo = value => { const minutes = Math.max(0, Math.round((Date.now() - new Date(value)) / 60000)); return minutes < 1 ? 'just now' : minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : new Date(value).toLocaleDateString(); };
-const header = () => `<header class="appbar"><div class="brand">${icon('mark', 21)}<span>Code Redox</span></div><div class="appbar-meta">Local code quality checks</div></header>`;
-const loadingDock = () => state.scanning ? `<div class="loading-dock" role="status"><span class="loading-track"><i></i></span><span>${icon('spinner', 14)} ${esc(state.loadingLabel || 'Analyzing project...')}</span><small>Results appear as checks complete</small></div>` : '';
+const esc = (value) =>
+  String(value || "").replace(
+    /[&<>'"]/g,
+    (char) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[
+        char
+      ],
+  );
+const bytes = (value) =>
+  value < 1024
+    ? `${value} B`
+    : value < 1048576
+      ? `${(value / 1024).toFixed(1)} KB`
+      : `${(value / 1048576).toFixed(1)} MB`;
+const timeAgo = (value) => {
+  const minutes = Math.max(
+    0,
+    Math.round((Date.now() - new Date(value)) / 60000),
+  );
+  return minutes < 1
+    ? "just now"
+    : minutes < 60
+      ? `${minutes}m ago`
+      : minutes < 1440
+        ? `${Math.round(minutes / 60)}h ago`
+        : new Date(value).toLocaleDateString();
+};
+const header = () =>
+  `<header class="appbar"><div class="brand">${icon("mark", 21)}<span>Code Redox</span></div><div class="appbar-meta">Local code quality checks</div></header>`;
+const loadingDock = () =>
+  state.scanning
+    ? `<div class="loading-dock" role="status"><span class="loading-track"><i></i></span><span>${icon("spinner", 14)} ${esc(state.loadingLabel || "Analyzing project...")}</span><small>Results appear as checks complete</small></div>`
+    : "";
 
-function renderOpening(label) { state.scanning = true; state.loadingLabel = `Opening ${label || 'project'}...`; app.innerHTML = `${header()}<main class="opening"><div class="opening-card"><span class="opening-icon">${icon('folder', 24)}</span><h1>Opening project</h1><p>Reading files, repository details, and your README.</p></div></main>${loadingDock()}`; }
-function renderIntro() { app.innerHTML = `${header()}<main class="intro"><div class="intro-lockup">${icon('mark', 34)}</div><h1>Keep the code.<br>Lose the clutter.</h1><p>Code Redox finds duplicate, unused, and inconsistent code before it becomes technical debt.</p><button class="btn btn-primary" id="continue">Get started ${icon('arrow')}</button></main>`; document.querySelector('#continue').onclick = async () => { await window.api.finishIntro(); renderHome(); }; }
-async function renderHome() { state.recent = await window.api.listRecentProjects(); app.innerHTML = `${header()}<main class="home"><section class="home-hero"><p class="kicker">LOCAL PROJECT ANALYSIS</p><h1>Know what changed<br>before it ships.</h1><p>Open a repository and Code Redox will automatically check it in the background.</p><button class="btn btn-primary" id="open-project">${icon('folder')} Open project</button><button class="drop-zone" id="drop-zone">${icon('folder', 19)} <strong>Drop a folder here</strong><span>or choose one from your computer</span></button></section><section class="recent-panel"><div class="panel-title"><h2>Recent projects</h2><span>${state.recent.length}</span></div>${state.recent.length ? `<div class="recent-list">${state.recent.map(item => `<button class="recent" data-path="${esc(item.path)}"><span class="recent-avatar">${icon('code')}</span><span class="recent-copy"><strong>${esc(item.name)}</strong><small>${esc(item.path)}</small></span><time>${timeAgo(item.lastOpened)}</time>${icon('chevron', 15)}</button>`).join('')}</div>` : '<div class="empty-recent">Projects you open will appear here.</div>'}</section></main>${loadingDock()}`; document.querySelector('#open-project').onclick = openPicker; const drop = document.querySelector('#drop-zone'); ['dragenter', 'dragover'].forEach(name => drop.addEventListener(name, event => { event.preventDefault(); drop.classList.add('dragging'); })); ['dragleave', 'drop'].forEach(name => drop.addEventListener(name, event => { event.preventDefault(); drop.classList.remove('dragging'); })); drop.addEventListener('drop', event => { const folder = [...event.dataTransfer.files].find(file => file.path); if (folder) openProject(folder.path, folder.name); }); document.querySelectorAll('.recent').forEach(button => button.onclick = () => openProject(button.dataset.path, button.querySelector('strong').textContent)); }
-async function openPicker() { renderOpening('project'); const project = await window.api.openProjectDialog(); if (project) enterProject(project); else { state.scanning = false; renderHome(); } }
-async function openProject(projectPath, projectName) { renderOpening(projectName); const project = await window.api.openProjectPath(projectPath); if (project) enterProject(project); else { state.scanning = false; renderHome(); } }
-function enterProject(project) { state.project = project; state.results = project.cachedResults || {}; state.progress = {}; state.fixedCount = 0; Object.entries(state.results).forEach(([id, issues]) => state.progress[id] = { status: 'done', count: issues.length }); state.activeCheck = 'all'; state.activeView = 'findings'; state.scanning = true; state.loadingLabel = project.cachedResults ? 'Checking for project changes...' : 'Starting your first analysis...'; renderProject(); void startAutomaticScan(project.id); }
-async function startAutomaticScan(projectId) { try { await window.api.runScan(projectId); } finally { if (state.project?.id === projectId && state.scanning) { state.scanning = false; renderProject(); } } }
-function allIssues() { return Object.values(state.results).flat(); } function filteredIssues() { const all = allIssues(); return state.activeCheck === 'all' ? all : all.filter(issue => issue.type === state.activeCheck); }
-function checkStatus(check) { const progress = state.progress[check.id]; if (!progress) return '<span class="check-state">Waiting</span>'; if (progress.status === 'running') return `<span class="check-state running">${icon('spinner', 12)} Running</span>`; if (progress.status === 'error') return '<span class="check-state error">Failed</span>'; return `<span class="check-count">${progress.count || 0}</span>`; }
-function issueMarkup() { const issues = filteredIssues(); if (!issues.length) return `<div class="empty-findings">${icon('check', 24)}<h3>${state.scanning ? 'No findings yet' : 'No findings here'}</h3><p>${state.scanning ? 'Results will appear here as each check finds them.' : 'This part of the project looks clean.'}</p></div>`; return issues.map(issue => `<article class="finding"><span class="finding-icon">${icon('issue', 18)}</span><div class="finding-main"><h3>${esc(issue.reason)}</h3><p><code>${esc(issue.file)}:${issue.line}${issue.endLine !== issue.line ? `-${issue.endLine}` : ''}</code>${issue.symbol ? ` <span>${esc(issue.symbol)}</span>` : ''}</p>${issue.snippet ? `<div class="snippet loading" data-highlight="${issue.id}"><pre><code>${esc(issue.snippet)}</code></pre></div>` : ''}</div><button class="btn btn-default copy-prompt" data-id="${issue.id}">${icon('copy', 14)} Copy fix prompt</button></article>`).join(''); }
-function readmeMarkup(metadata) {
-  const languages = metadata.languages || []; const latest = metadata.git.latest;
-  return `<div class="overview-grid"><section class="readme-box"><div class="box-heading"><span>${icon('book', 16)} README.md</span><span>Rendered like GitHub</span></div><article class="markdown">${metadata.readme}</article></section><aside class="about-box"><div class="about-heading"><h2>About this project</h2><span class="visibility">LOCAL</span></div><p class="project-path" title="${esc(state.project.path)}">${esc(state.project.path)}</p><div class="language-bar">${languages.map(item => `<i title="${esc(item.name)} ${item.percent}%" style="width:${item.percent}%;background:${item.color}"></i>`).join('')}</div><div class="languages">${languages.slice(0, 5).map(item => `<span><i style="background:${item.color}"></i>${esc(item.name)} <b>${item.percent}%</b></span>`).join('')}</div><dl><div><dt>Default branch</dt><dd>${icon('code', 14)} ${esc(metadata.git.branch)}</dd></div><div><dt>Latest commit</dt><dd class="commit-detail">${latest ? `<code>${esc(latest.hash)}</code> ${esc(latest.message || 'No message')}` : 'No commit data'}</dd>${latest?.date ? `<small>${new Date(latest.date).toLocaleString()}</small>` : ''}</div><div><dt>Remote</dt><dd>${metadata.git.provider === 'GitHub' ? icon('github', 14) : icon('graph', 14)} ${esc(metadata.git.provider)} · ${metadata.git.commits.toLocaleString()} commits</dd></div><div><dt>License</dt><dd>${esc(metadata.license.name)}</dd></div><div><dt>Project contents</dt><dd>${bytes(metadata.size)} · ${metadata.fileCount.toLocaleString()} files</dd></div><div><dt>Last local analysis</dt><dd>${state.project.lastScan ? new Date(state.project.lastScan).toLocaleString() : 'Analyzing now'}</dd></div></dl></aside></div>`;
+function renderOpening(label) {
+  state.scanning = true;
+  state.loadingLabel = `Opening ${label || "project"}...`;
+  app.innerHTML = `${header()}<main class="opening"><div class="opening-card"><span class="opening-icon">${icon("folder", 24)}</span><h1>Opening project</h1><p>Reading files, repository details, and your README.</p></div></main>${loadingDock()}`;
 }
-function renderProject() { const { project } = state; const metadata = project.metadata; const issues = allIssues(); const main = state.activeView === 'readme' ? readmeMarkup(metadata) : `<section class="findings"><div class="findings-head"><div><h2>Findings</h2><p>${state.activeCheck === 'all' ? 'Everything Code Redox has found in this project.' : `Showing ${project.checks.find(check => check.id === state.activeCheck)?.label.toLowerCase()} findings.`}</p></div><span>${filteredIssues().length} results</span></div>${state.fixedCount ? `<div class="fixed-banner">${icon('check', 15)} ${state.fixedCount} finding${state.fixedCount === 1 ? '' : 's'} resolved since the previous scan.</div>` : ''}<div class="finding-list">${issueMarkup()}</div></section>`; app.innerHTML = `${header()}<main class="repo"><section class="repo-context"><div><span class="repo-icon">${icon('book', 16)}</span><strong>local</strong><span class="slash">/</span><strong>${esc(project.name)}</strong><span class="visibility">LOCAL</span></div><span class="repo-status ${state.scanning ? 'is-running' : ''}">${state.scanning ? `${icon('spinner', 13)} Analyzing` : `${icon('check', 13)} Up to date`}</span></section><nav class="repo-tabs"><button class="tab ${state.activeView === 'findings' ? 'selected' : ''}" data-view="findings">${icon('issue')} Findings <span>${issues.length}</span></button><button class="tab ${state.activeView === 'readme' ? 'selected' : ''}" data-view="readme">${icon('book')} README</button></nav><div class="repo-layout"><aside class="check-panel"><div class="check-panel-head"><strong>Analysis</strong><span>${state.scanning ? 'Running' : 'Complete'}</span></div><button class="check ${state.activeCheck === 'all' ? 'selected' : ''}" data-check="all">All findings <b>${issues.length}</b></button>${project.checks.map(check => `<button class="check ${state.activeCheck === check.id ? 'selected' : ''}" data-check="${check.id}">${esc(check.label)}${checkStatus(check)}</button>`).join('')}<p class="check-note">Results are cached per project. Changed files are checked automatically when you reopen it.</p></aside><section class="repo-main">${main}</section></div></main>${loadingDock()}`; document.querySelectorAll('[data-view]').forEach(button => button.onclick = () => { state.activeView = button.dataset.view; renderProject(); }); document.querySelectorAll('.check').forEach(button => button.onclick = () => { state.activeCheck = button.dataset.check; state.activeView = 'findings'; renderProject(); }); document.querySelectorAll('.copy-prompt').forEach(button => button.onclick = async () => { const original = button.innerHTML; await navigator.clipboard.writeText(await window.api.getFixPrompt(button.dataset.id)); button.innerHTML = `${icon('check', 14)} Copied`; setTimeout(() => { if (button.isConnected) button.innerHTML = original; }, 1400); }); highlightIssues(); }
-async function highlightIssues() { for (const element of document.querySelectorAll('[data-highlight]')) { const html = await window.api.highlightIssue(element.dataset.highlight); if (html && element.isConnected) { element.innerHTML = html; element.classList.remove('loading'); } } }
-window.api.onScanProgress(event => { if (!state.project || event.projectId !== state.project.id || event.checkId === 'all') return; state.progress[event.checkId] = event; const name = state.project.checks.find(check => check.id === event.checkId)?.label || 'project'; state.loadingLabel = event.status === 'running' ? `Checking ${name}...` : 'Finalizing results...'; renderProject(); });
-window.api.onScanResults(event => { if (!state.project || event.projectId !== state.project.id) return; if (event.checkId) { if (event.reset) state.results[event.checkId] = []; else if (event.append) state.results[event.checkId] = [...(state.results[event.checkId] || []), ...event.issues]; else state.results[event.checkId] = event.issues; } if (event.results) { state.results = event.results; state.scanning = false; } if (typeof event.fixedCount === 'number') state.fixedCount = event.fixedCount; renderProject(); });
-const boot = async () => (await window.api.getAppState()).introSeen ? renderHome() : renderIntro(); boot();
+function renderIntro() {
+  app.innerHTML = `${header()}<main class="intro"><div class="intro-lockup">${icon("mark", 34)}</div><h1>Keep the code.<br>Lose the clutter.</h1><p>Code Redox finds duplicate, unused, and inconsistent code before it becomes technical debt.</p><button class="btn btn-primary" id="continue">Get started ${icon("arrow")}</button></main>`;
+  document.querySelector("#continue").onclick = async () => {
+    await window.api.finishIntro();
+    renderHome();
+  };
+}
+async function renderHome() {
+  state.recent = await window.api.listRecentProjects();
+  app.innerHTML = `${header()}<main class="home"><section class="home-hero"><p class="kicker">LOCAL PROJECT ANALYSIS</p><h1>Know what changed<br>before it ships.</h1><p>Open a repository and Code Redox will automatically check it in the background.</p><button class="btn btn-primary" id="open-project">${icon("folder")} Open project</button><button class="drop-zone" id="drop-zone">${icon("folder", 19)} <strong>Drop a folder here</strong><span>or choose one from your computer</span></button></section><section class="recent-panel"><div class="panel-title"><h2>Recent projects</h2><span>${state.recent.length}</span></div>${state.recent.length ? `<div class="recent-list">${state.recent.map((item) => `<button class="recent" data-path="${esc(item.path)}"><span class="recent-avatar">${icon("code")}</span><span class="recent-copy"><strong>${esc(item.name)}</strong><small>${esc(item.path)}</small></span><time>${timeAgo(item.lastOpened)}</time>${icon("chevron", 15)}</button>`).join("")}</div>` : '<div class="empty-recent">Projects you open will appear here.</div>'}</section></main>${loadingDock()}`;
+  document.querySelector("#open-project").onclick = openPicker;
+  const drop = document.querySelector("#drop-zone");
+  ["dragenter", "dragover"].forEach((name) =>
+    drop.addEventListener(name, (event) => {
+      event.preventDefault();
+      drop.classList.add("dragging");
+    }),
+  );
+  ["dragleave", "drop"].forEach((name) =>
+    drop.addEventListener(name, (event) => {
+      event.preventDefault();
+      drop.classList.remove("dragging");
+    }),
+  );
+  drop.addEventListener("drop", (event) => {
+    const folder = [...event.dataTransfer.files].find((file) => file.path);
+    if (folder) openProject(folder.path, folder.name);
+  });
+  document
+    .querySelectorAll(".recent")
+    .forEach(
+      (button) =>
+        (button.onclick = () =>
+          openProject(
+            button.dataset.path,
+            button.querySelector("strong").textContent,
+          )),
+    );
+}
+async function openPicker() {
+  renderOpening("project");
+  const project = await window.api.openProjectDialog();
+  if (project) enterProject(project);
+  else {
+    state.scanning = false;
+    renderHome();
+  }
+}
+async function openProject(projectPath, projectName) {
+  renderOpening(projectName);
+  const project = await window.api.openProjectPath(projectPath);
+  if (project) enterProject(project);
+  else {
+    state.scanning = false;
+    renderHome();
+  }
+}
+function enterProject(project) {
+  state.project = project;
+  state.results = project.cachedResults || {};
+  state.progress = {};
+  state.fixedCount = 0;
+  Object.entries(state.results).forEach(
+    ([id, issues]) =>
+      (state.progress[id] = { status: "done", count: issues.length }),
+  );
+  state.activeCheck = "all";
+  state.activeView = "findings";
+  state.scanning = true;
+  state.loadingLabel = project.cachedResults
+    ? "Checking for project changes..."
+    : "Starting your first analysis...";
+  renderProject();
+  void startAutomaticScan(project.id);
+}
+async function startAutomaticScan(projectId) {
+  try {
+    await window.api.runScan(projectId);
+  } finally {
+    if (state.project?.id === projectId && state.scanning) {
+      state.scanning = false;
+      renderProject();
+    }
+  }
+}
+function allIssues() {
+  return Object.values(state.results).flat();
+}
+function filteredIssues() {
+  const all = allIssues();
+  return state.activeCheck === "all"
+    ? all
+    : all.filter((issue) => issue.type === state.activeCheck);
+}
+function checkStatus(check) {
+  const progress = state.progress[check.id];
+  if (!progress) return '<span class="check-state">Waiting</span>';
+  if (progress.status === "running")
+    return `<span class="check-state running">${icon("spinner", 12)} Running</span>`;
+  if (progress.status === "error")
+    return '<span class="check-state error">Failed</span>';
+  return `<span class="check-count">${progress.count || 0}</span>`;
+}
+function issueMarkup() {
+  const issues = filteredIssues();
+  if (!issues.length)
+    return `<div class="empty-findings">${icon("check", 24)}<h3>${state.scanning ? "No findings yet" : "No findings here"}</h3><p>${state.scanning ? "Results will appear here as each check finds them." : "This part of the project looks clean."}</p></div>`;
+  return issues
+    .map(
+      (issue) =>
+        `<article class="finding"><span class="finding-icon">${icon("issue", 18)}</span><div class="finding-main"><h3>${esc(issue.reason)}</h3><p><code>${esc(issue.file)}:${issue.line}${issue.endLine !== issue.line ? `-${issue.endLine}` : ""}</code>${issue.symbol ? ` <span>${esc(issue.symbol)}</span>` : ""}</p>${issue.snippet ? `<div class="snippet loading" data-highlight="${issue.id}"><pre><code>${esc(issue.snippet)}</code></pre></div>` : ""}</div><button class="btn btn-default copy-prompt" data-id="${issue.id}">${icon("copy", 14)} Copy fix prompt</button></article>`,
+    )
+    .join("");
+}
+function readmeMarkup(metadata) {
+  const languages = metadata.languages || [];
+  const latest = metadata.git.latest;
+  return `<div class="overview-grid"><section class="readme-box"><div class="box-heading"><span>${icon("book", 16)} README.md</span><span>Rendered like GitHub</span></div><article class="markdown">${metadata.readme}</article></section><aside class="about-box"><div class="about-heading"><h2>About this project</h2><span class="visibility">LOCAL</span></div><p class="project-path" title="${esc(state.project.path)}">${esc(state.project.path)}</p><div class="language-bar">${languages.map((item) => `<i title="${esc(item.name)} ${item.percent}%" style="width:${item.percent}%;background:${item.color}"></i>`).join("")}</div><div class="languages">${languages
+    .slice(0, 5)
+    .map(
+      (item) =>
+        `<span><i style="background:${item.color}"></i>${esc(item.name)} <b>${item.percent}%</b></span>`,
+    )
+    .join(
+      "",
+    )}</div><dl><div><dt>Default branch</dt><dd>${icon("code", 14)} ${esc(metadata.git.branch)}</dd></div><div><dt>Latest commit</dt><dd class="commit-detail">${latest ? `<code>${esc(latest.hash)}</code> ${esc(latest.message || "No message")}` : "No commit data"}</dd>${latest?.date ? `<small>${new Date(latest.date).toLocaleString()}</small>` : ""}</div><div><dt>Remote</dt><dd>${metadata.git.provider === "GitHub" ? icon("github", 14) : icon("graph", 14)} ${esc(metadata.git.provider)} · ${metadata.git.commits.toLocaleString()} commits</dd></div><div><dt>License</dt><dd>${esc(metadata.license.name)}</dd></div><div><dt>Project contents</dt><dd>${bytes(metadata.size)} · ${metadata.fileCount.toLocaleString()} files</dd></div><div><dt>Last local analysis</dt><dd>${state.project.lastScan ? new Date(state.project.lastScan).toLocaleString() : "Analyzing now"}</dd></div></dl></aside></div>`;
+}
+function renderProject() {
+  const { project } = state;
+  const metadata = project.metadata;
+  const issues = allIssues();
+  const main =
+    state.activeView === "readme"
+      ? readmeMarkup(metadata)
+      : `<section class="findings"><div class="findings-head"><div><h2>Findings</h2><p>${state.activeCheck === "all" ? "Everything Code Redox has found in this project." : `Showing ${project.checks.find((check) => check.id === state.activeCheck)?.label.toLowerCase()} findings.`}</p></div><span>${filteredIssues().length} results</span></div>${state.fixedCount ? `<div class="fixed-banner">${icon("check", 15)} ${state.fixedCount} finding${state.fixedCount === 1 ? "" : "s"} resolved since the previous scan.</div>` : ""}<div class="finding-list">${issueMarkup()}</div></section>`;
+  app.innerHTML = `${header()}<main class="repo"><section class="repo-context"><div><span class="repo-icon">${icon("book", 16)}</span><strong>${esc(project.name)}</strong></div><span class="repo-status ${state.scanning ? "is-running" : ""}">${state.scanning ? `${icon("spinner", 13)} Analyzing` : `${icon("check", 13)} Up to date`}</span></section><nav class="repo-tabs"><button class="tab ${state.activeView === "findings" ? "selected" : ""}" data-view="findings">${icon("issue")} Findings <span>${issues.length}</span></button><button class="tab ${state.activeView === "readme" ? "selected" : ""}" data-view="readme">${icon("book")} README</button></nav><div class="repo-layout"><aside class="check-panel"><div class="check-panel-head"><strong>Analysis</strong><span>${state.scanning ? "Running" : "Complete"}</span></div><button class="check ${state.activeCheck === "all" ? "selected" : ""}" data-check="all">All findings <b>${issues.length}</b></button>${project.checks.map((check) => `<button class="check ${state.activeCheck === check.id ? "selected" : ""}" data-check="${check.id}">${esc(check.label)}${checkStatus(check)}</button>`).join("")}<p class="check-note">Results are cached per project. Changed files are checked automatically when you reopen it.</p></aside><section class="repo-main">${main}</section></div></main>${loadingDock()}`;
+  document.querySelectorAll("[data-view]").forEach(
+    (button) =>
+      (button.onclick = () => {
+        state.activeView = button.dataset.view;
+        renderProject();
+      }),
+  );
+  document.querySelectorAll(".check").forEach(
+    (button) =>
+      (button.onclick = () => {
+        state.activeCheck = button.dataset.check;
+        state.activeView = "findings";
+        renderProject();
+      }),
+  );
+  document.querySelectorAll(".copy-prompt").forEach(
+    (button) =>
+      (button.onclick = async () => {
+        const original = button.innerHTML;
+        await navigator.clipboard.writeText(
+          await window.api.getFixPrompt(button.dataset.id),
+        );
+        button.innerHTML = `${icon("check", 14)} Copied`;
+        setTimeout(() => {
+          if (button.isConnected) button.innerHTML = original;
+        }, 1400);
+      }),
+  );
+  highlightIssues();
+}
+async function highlightIssues() {
+  for (const element of document.querySelectorAll("[data-highlight]")) {
+    const html = await window.api.highlightIssue(element.dataset.highlight);
+    if (html && element.isConnected) {
+      element.innerHTML = html;
+      element.classList.remove("loading");
+    }
+  }
+}
+window.api.onScanProgress((event) => {
+  if (
+    !state.project ||
+    event.projectId !== state.project.id ||
+    event.checkId === "all"
+  )
+    return;
+  state.progress[event.checkId] = event;
+  const name =
+    state.project.checks.find((check) => check.id === event.checkId)?.label ||
+    "project";
+  state.loadingLabel =
+    event.status === "running"
+      ? `Checking ${name}...`
+      : "Finalizing results...";
+  renderProject();
+});
+window.api.onScanResults((event) => {
+  if (!state.project || event.projectId !== state.project.id) return;
+  if (event.checkId) {
+    if (event.reset) state.results[event.checkId] = [];
+    else if (event.append)
+      state.results[event.checkId] = [
+        ...(state.results[event.checkId] || []),
+        ...event.issues,
+      ];
+    else state.results[event.checkId] = event.issues;
+  }
+  if (event.results) {
+    state.results = event.results;
+    state.scanning = false;
+  }
+  if (typeof event.fixedCount === "number") state.fixedCount = event.fixedCount;
+  renderProject();
+});
+const boot = async () =>
+  (await window.api.getAppState()).introSeen ? renderHome() : renderIntro();
+boot();
