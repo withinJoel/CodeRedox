@@ -1,4 +1,4 @@
-# {Project Name}
+# CodeRedox
 * {a short intro}
 * Made with 💖 by Joel Jolly.
 
