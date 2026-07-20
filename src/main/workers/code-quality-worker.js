@@ -4,7 +4,9 @@ import path from 'node:path';
 const [root, filesArg, rule] = process.argv.slice(2);
 const files = JSON.parse(await fs.readFile(filesArg, 'utf8'));
 const SOURCE_FILE = /\.(?:[cm]?js|jsx|tsx?|mjs|cjs|java|php|py|rb|go|rs|cs|swift|kt)$/i;
+const MARKUP_FILE = /\.(?:html?|vue|svelte)$/i;
 const SECRET_FILE = /(?:\.(?:[cm]?js|jsx|tsx?|mjs|cjs|json|ya?ml|toml|ini|conf|config)$|(?:^|\/)(?:\.env(?:\..*)?|\.npmrc|\.pypirc|id_rsa|credentials(?:\.[\w-]+)?|secrets?(?:\.[\w-]+)?))$/i;
+const MARKUP_RULES = new Set(['unsafe-external-links', 'image-alt-text']);
 const emit = issue => process.stdout.write(`${JSON.stringify({ type: 'issue', issue })}\n`);
 
 function inspect(ruleName, lines) {
@@ -20,8 +22,14 @@ function inspect(ruleName, lines) {
     case 'weak-cryptography': return findWeakCryptography(lines);
     case 'insecure-randomness': return findInsecureRandomness(lines);
     case 'unvalidated-redirects': return findUnvalidatedRedirects(lines);
+    case 'sql-injection': return findSqlInjection(lines);
+    case 'path-traversal': return findPathTraversal(lines);
+    case 'xss-sinks': return findXssSinks(lines);
+    case 'tls-validation': return findDisabledTlsValidation(lines);
     case 'unsafe-operations': return findUnsafeOperations(lines);
     case 'deprecated-apis': return findDeprecatedApis(lines);
+    case 'unsafe-external-links': return findUnsafeExternalLinks(lines);
+    case 'image-alt-text': return findMissingImageAltText(lines);
     default: return [];
   }
 }
@@ -193,6 +201,68 @@ function findDeprecatedApis(lines) {
   });
 }
 
+function findSqlInjection(lines) {
+  return lines.flatMap((line, index) => {
+    const source = withoutLineComments(line);
+    if (/\b(?:query|execute|raw)\s*\(\s*`[^`]*\$\{\s*(?:req|request)\./i.test(source)
+      || /\b(?:query|execute|raw)\s*\(\s*['"][^'"]*['"]\s*\+\s*(?:req|request)\./i.test(source)) {
+      return [{ line: index + 1, symbol: 'query', reason: 'Database query includes request input through string construction. Use parameterized queries or prepared statements.' }];
+    }
+    return [];
+  });
+}
+
+function findPathTraversal(lines) {
+  return lines.flatMap((line, index) => {
+    const source = withoutLineComments(line);
+    if (/\b(?:path\.)?(?:join|resolve)\s*\([^)]*(?:req|request)\.(?:params|query|body)\b/i.test(source)) {
+      return [{ line: index + 1, symbol: 'path.join', reason: 'Filesystem path includes request input directly. Normalize it and enforce that the resolved path remains inside an allowed root.' }];
+    }
+    return [];
+  });
+}
+
+function findXssSinks(lines) {
+  return lines.flatMap((line, index) => {
+    const source = withoutLineComments(line);
+    if (/\b(?:innerHTML|outerHTML)\s*=\s*(?:req|request)\.(?:query|params|body)\b/i.test(source)
+      || /\b(?:document\.write|insertAdjacentHTML)\s*\([^)]*(?:req|request)\.(?:query|params|body)\b/i.test(source)) {
+      return [{ line: index + 1, symbol: 'HTML sink', reason: 'Untrusted request input reaches an HTML sink. Sanitize it or render it as text to prevent cross-site scripting.' }];
+    }
+    return [];
+  });
+}
+
+function findDisabledTlsValidation(lines) {
+  return lines.flatMap((line, index) => {
+    const source = withoutLineComments(line);
+    if (/\brejectUnauthorized\s*:\s*false\b|\bNODE_TLS_REJECT_UNAUTHORIZED\s*=\s*['"]?0\b|\bverify\s*=\s*False\b/.test(source)) {
+      return [{ line: index + 1, symbol: 'TLS validation', reason: 'TLS certificate validation is disabled. Re-enable validation and trust only the required certificate authority.' }];
+    }
+    return [];
+  });
+}
+
+function findUnsafeExternalLinks(lines) {
+  return lines.flatMap((line, index) => {
+    const source = line;
+    if (/<a\b[^>]*\btarget\s*=\s*['"]_blank['"][^>]*>/i.test(source) && !/\brel\s*=\s*['"][^'"]*\bnoopener\b/i.test(source)) {
+      return [{ line: index + 1, symbol: 'target=_blank', reason: 'External link opens a new tab without rel="noopener". Add noopener (and usually noreferrer) to prevent tabnabbing.' }];
+    }
+    return [];
+  });
+}
+
+function findMissingImageAltText(lines) {
+  return lines.flatMap((line, index) => {
+    const source = line;
+    if (/<img\b[^>]*>/i.test(source) && !/\balt\s*=/.test(source)) {
+      return [{ line: index + 1, symbol: 'img', reason: 'Image is missing alt text. Add meaningful alt text, or alt="" when the image is purely decorative.' }];
+    }
+    return [];
+  });
+}
+
 function withoutLineComments(line) { return line.replace(/\/\/.*$/, '').replace(/\/\*[\s\S]*?\*\//g, ''); }
 
 function functionsIn(lines) {
@@ -255,7 +325,7 @@ function conditionFor(line) {
 }
 
 for (const file of files) {
-  if (!(SOURCE_FILE.test(file) || (rule === 'secrets' && SECRET_FILE.test(file)))) continue;
+  if (!(SOURCE_FILE.test(file) || (rule === 'secrets' && SECRET_FILE.test(file)) || (MARKUP_RULES.has(rule) && MARKUP_FILE.test(file)))) continue;
   try {
     const text = await fs.readFile(path.join(root, file), 'utf8');
     const lines = text.split(/\r?\n/);

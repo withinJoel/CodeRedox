@@ -82,3 +82,44 @@ test('does not flag ordinary random values or fixed redirects', async () => {
   assert.equal(randomness.length, 0);
   assert.equal(redirects.length, 0);
 });
+
+test('finds web security and accessibility audit findings', async () => {
+  const source = `
+db.query(\`SELECT * FROM users WHERE id = \${req.query.id}\`);
+const destination = path.join(uploadRoot, req.params.file);
+panel.innerHTML = req.query.message;
+fetch(endpoint, { rejectUnauthorized: false });
+<a href="https://example.com" target="_blank">Docs</a>;
+<img src="logo.png">;
+`;
+  const [sql, traversal, xss, tls, links, images] = await Promise.all([
+    scan('sql-injection', source),
+    scan('path-traversal', source),
+    scan('xss-sinks', source),
+    scan('tls-validation', source),
+    scan('unsafe-external-links', source),
+    scan('image-alt-text', source)
+  ]);
+  assert.deepEqual(sql.map(issue => issue.line), [2]);
+  assert.deepEqual(traversal.map(issue => issue.line), [3]);
+  assert.deepEqual(xss.map(issue => issue.line), [4]);
+  assert.deepEqual(tls.map(issue => issue.line), [5]);
+  assert.deepEqual(links.map(issue => issue.line), [6]);
+  assert.deepEqual(images.map(issue => issue.line), [7]);
+});
+
+test('does not flag parameterized queries, safe links, or descriptive images', async () => {
+  const source = `
+db.query('SELECT * FROM users WHERE id = ?', [req.query.id]);
+<a href="https://example.com" target="_blank" rel="noopener noreferrer">Docs</a>;
+<img src="logo.png" alt="CodeRedox logo">;
+`;
+  const [sql, links, images] = await Promise.all([
+    scan('sql-injection', source),
+    scan('unsafe-external-links', source),
+    scan('image-alt-text', source)
+  ]);
+  assert.equal(sql.length, 0);
+  assert.equal(links.length, 0);
+  assert.equal(images.length, 0);
+});

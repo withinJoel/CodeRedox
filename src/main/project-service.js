@@ -15,7 +15,7 @@ import { addLatestVersions, discoverPackages, managePackage } from './package-se
 import { deleteEmptyArtifact, findEmptyArtifacts } from './empty-artifact-service.js';
 
 const EXCLUDED = new Set(['node_modules', '.git', 'dist', 'build', '.next', 'coverage']);
-const SCAN_VERSION = 7;
+const SCAN_VERSION = 8;
 const LANGUAGE_BY_EXTENSION = {
   js: ['JavaScript', '#f1e05a'], mjs: ['JavaScript', '#f1e05a'], cjs: ['JavaScript', '#f1e05a'],
   ts: ['TypeScript', '#3178c6'], tsx: ['TypeScript', '#3178c6'], jsx: ['JavaScript', '#f1e05a'],
@@ -40,9 +40,15 @@ const CHECKS = [
   { id: 'weak-cryptography', label: 'Weak Cryptography', command: 'built-in', group: 'Security' },
   { id: 'insecure-randomness', label: 'Insecure Randomness', command: 'built-in', group: 'Security' },
   { id: 'unvalidated-redirects', label: 'Unvalidated Redirects', command: 'built-in', group: 'Security' },
+  { id: 'sql-injection', label: 'SQL Injection', command: 'built-in', group: 'Security' },
+  { id: 'path-traversal', label: 'Path Traversal', command: 'built-in', group: 'Security' },
+  { id: 'xss-sinks', label: 'XSS Sinks', command: 'built-in', group: 'Security' },
+  { id: 'tls-validation', label: 'TLS Validation', command: 'built-in', group: 'Security' },
   { id: 'unsafe-operations', label: 'Unsafe Operations', command: 'built-in', group: 'Runtime safety' },
   { id: 'package-integrity', label: 'Package Integrity', command: 'slop-scan', group: 'Runtime safety' },
-  { id: 'deprecated-apis', label: 'Deprecated APIs', command: 'built-in', group: 'Maintainability' }
+  { id: 'deprecated-apis', label: 'Deprecated APIs', command: 'built-in', group: 'Maintainability' },
+  { id: 'unsafe-external-links', label: 'Unsafe External Links', command: 'built-in', group: 'Accessibility' },
+  { id: 'image-alt-text', label: 'Image Alt Text', command: 'built-in', group: 'Accessibility' }
 ];
 
 const escapeHtml = (value = '') => String(value).replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[c]);
@@ -98,9 +104,15 @@ export class ProjectService {
       'weak-cryptography': () => this.runCodeQuality(project, 'weak-cryptography'),
       'insecure-randomness': () => this.runCodeQuality(project, 'insecure-randomness'),
       'unvalidated-redirects': () => this.runCodeQuality(project, 'unvalidated-redirects'),
+      'sql-injection': () => this.runCodeQuality(project, 'sql-injection'),
+      'path-traversal': () => this.runCodeQuality(project, 'path-traversal'),
+      'xss-sinks': () => this.runCodeQuality(project, 'xss-sinks'),
+      'tls-validation': () => this.runCodeQuality(project, 'tls-validation'),
       'unsafe-operations': () => this.runCodeQuality(project, 'unsafe-operations'),
       'package-integrity': () => this.runPackageIntegrity(project),
-      'deprecated-apis': () => this.runCodeQuality(project, 'deprecated-apis')
+      'deprecated-apis': () => this.runCodeQuality(project, 'deprecated-apis'),
+      'unsafe-external-links': () => this.runCodeQuality(project, 'unsafe-external-links'),
+      'image-alt-text': () => this.runCodeQuality(project, 'image-alt-text')
     };
     let scanHadErrors = false;
     const activeChecks = CHECKS.filter(check => !project.disabledChecks.includes(check.id));
