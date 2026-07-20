@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld("api", {
   deleteEmptyArtifact: (projectId, issueId) => ipcRenderer.invoke("issue:delete-empty-artifact", projectId, issueId),
   fixViaCodex: (projectId, issueId) => ipcRenderer.invoke("issue:fix-via-codex", projectId, issueId),
   fixCheckViaCodex: (projectId, checkId, issueIds) => ipcRenderer.invoke("issue:fix-check-via-codex", projectId, checkId, issueIds),
+  getIssueCommit: (projectId, issueId) => ipcRenderer.invoke("issue:get-commit", projectId, issueId),
   getFixPrompt: (issueId) =>
     ipcRenderer.invoke("issue:get-fix-prompt", issueId),
   highlightIssue: (issueId) => ipcRenderer.invoke("issue:highlight", issueId),

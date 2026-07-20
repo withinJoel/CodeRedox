@@ -223,6 +223,26 @@ export class ProjectService {
     return { disabledChecks: project.disabledChecks };
   }
   getFixPrompt(issueId) { const issue = this.issues.get(issueId); if (!issue) throw new Error('That issue is no longer available.'); return buildPrompt(issue); }
+  async getIssueCommit(projectId, issueId) {
+    const project = this.projects.get(projectId);
+    const issue = this.issues.get(issueId);
+    if (!project || !issue || issue.projectId !== projectId) throw new Error('That finding is no longer available.');
+    const git = simpleGit(project.path);
+    let blame;
+    try { blame = await git.raw(['blame', '--line-porcelain', '-L', `${issue.line},${issue.line}`, '--', issue.file]); }
+    catch { throw new Error('Git cannot identify a commit for this finding. The file may be untracked, generated, or outside Git history.'); }
+    const hash = blame.match(/^([0-9a-f]{40})\s/m)?.[1];
+    if (!hash || /^0+$/.test(hash)) throw new Error('Git cannot identify a commit for this finding.');
+    const metadata = (await git.raw(['show', '-s', '--format=%H%x00%h%x00%an%x00%ae%x00%aI%x00%s', hash])).trim().split('\0');
+    const files = (await git.raw(['show', '--format=', '--name-status', '--find-renames', hash])).trim().split(/\r?\n/).filter(Boolean).map(line => {
+      const [status, ...paths] = line.split('\t'); return { status, path: paths.join(' → ') };
+    });
+    const fullPatch = await git.raw(['show', '--format=', '--patch', '--find-renames', '--no-ext-diff', hash]);
+    const maxPatchLength = 750000;
+    const additions = (fullPatch.match(/^\+(?!\+\+)/gm) || []).length;
+    const deletions = (fullPatch.match(/^-(?!---)/gm) || []).length;
+    return { hash: metadata[0], shortHash: metadata[1], author: metadata[2], email: metadata[3], date: metadata[4], subject: metadata[5], files, additions, deletions, file: issue.file, line: issue.line, patch: fullPatch.slice(0, maxPatchLength), truncated: fullPatch.length > maxPatchLength };
+  }
   async highlight(issueId) {
     const issue = this.issues.get(issueId); if (!issue?.snippet) return '';
     try { const { codeToHtml } = await import('shiki'); return await codeToHtml(issue.snippet, { lang: shikiLanguage(issue.language), theme: 'github-light' }); }
