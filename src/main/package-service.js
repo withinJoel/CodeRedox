@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
 
 const TIMEOUT_MS = 7000;
 const USAGE_FILE = /\.(?:[cm]?js|jsx|tsx?|php|py|java|go|rs)$/i;
@@ -48,6 +49,77 @@ export async function addLatestVersions(packages) {
   return mapLimit(packages, 6, async item => {
     const release = await latestRelease(item).catch(() => null);
     return { ...item, latest: release?.version || null, latestUpdatedAt: release?.updatedAt || null };
+  });
+}
+
+export async function managePackage(root, files, item, action) {
+  if (!['update', 'uninstall'].includes(action)) throw new Error('Unsupported package action.');
+  if (action === 'update' && !item.latest) throw new Error('The latest version is unavailable for this package.');
+  if (item.ecosystem === 'JavaScript') return runJavaScriptPackageManager(root, files, item, action);
+  if (item.ecosystem === 'PHP') return runProgram('composer', action === 'update' ? ['require', `${item.name}:${item.latest}`] : ['remove', item.name], root);
+  if (item.ecosystem === 'Go') { if (action === 'update') return runProgram('go', ['get', `${item.name}@latest`], root); await runProgram('go', ['mod', 'edit', `-droprequire=${item.name}`], root); return runProgram('go', ['mod', 'tidy'], root); }
+  if (item.ecosystem === 'Rust') return runProgram('cargo', action === 'update' ? ['add', `${item.name}@${item.latest}`] : ['remove', item.name], root);
+  if (item.ecosystem === 'Python') return editRequirementsFile(root, item, action);
+  if (item.ecosystem === 'Java') return editJavaDependency(root, item, action);
+  throw new Error(`Package actions are unavailable for ${item.ecosystem}.`);
+}
+
+async function runJavaScriptPackageManager(root, files, item, action) {
+  const manager = files.some(file => /(?:^|\/)pnpm-lock\.yaml$/i.test(file.relative)) ? 'pnpm' : files.some(file => /(?:^|\/)yarn\.lock$/i.test(file.relative)) ? 'yarn' : files.some(file => /(?:^|\/)(?:bun\.lockb|bun\.lock)$/i.test(file.relative)) ? 'bun' : 'npm';
+  const versionedName = `${item.name}@${item.latest}`;
+  if (action === 'uninstall') return runProgram(manager, [manager === 'npm' ? 'uninstall' : 'remove', item.name], root);
+  const sectionArgs = item.section === 'devDependencies'
+    ? (manager === 'pnpm' ? ['-D'] : manager === 'bun' ? ['--dev'] : ['--save-dev'])
+    : item.section === 'peerDependencies' ? (manager === 'yarn' || manager === 'bun' ? ['--peer'] : ['--save-peer'])
+      : item.section === 'optionalDependencies' ? (manager === 'yarn' || manager === 'bun' ? ['--optional'] : ['--save-optional']) : [];
+  return runProgram(manager, [manager === 'npm' ? 'install' : 'add', versionedName, ...sectionArgs], root);
+}
+
+async function editRequirementsFile(root, item, action) {
+  const sourcePath = path.join(root, item.source);
+  const source = await fs.readFile(sourcePath, 'utf8');
+  const name = escapeRegex(item.name);
+  const pattern = new RegExp(`^(\\s*${name}(?:\\[[^\\]]+])?\\s*)(?:==|~=|>=|<=|>|<)\\s*[^\\s;,]+.*$`, 'gim');
+  const updated = action === 'update' ? source.replace(pattern, `$1==${item.latest}`) : source.replace(pattern, '');
+  if (updated === source) throw new Error(`Could not locate ${item.name} in ${item.source}.`);
+  await fs.writeFile(sourcePath, updated.replace(/\n{3,}/g, '\n\n'), 'utf8');
+  return { message: `${action === 'update' ? 'Updated' : 'Removed'} ${item.name} in ${item.source}.` };
+}
+
+async function editJavaDependency(root, item, action) {
+  const sourcePath = path.join(root, item.source);
+  const source = await fs.readFile(sourcePath, 'utf8');
+  const [group, artifact] = item.name.split(':');
+  let updated = source;
+  if (/pom\.xml$/i.test(item.source)) {
+    const dependency = /<dependency>([\s\S]*?)<\/dependency>/g;
+    let changed = false;
+    updated = source.replace(dependency, (block, body) => {
+      if (xmlValue(body, 'groupId') !== group || xmlValue(body, 'artifactId') !== artifact) return block;
+      changed = true;
+      if (action === 'uninstall') return '';
+      const property = xmlValue(body, 'version')?.match(/^\$\{(.+)}$/)?.[1];
+      if (property) return block.replace(new RegExp(`(<${escapeRegex(property)}>\\s*)[^<]+(\\s*<\\/${escapeRegex(property)}>)`), `$1${item.latest}$2`);
+      return /<version>/.test(block) ? block.replace(/(<version>\s*)[^<]+(\s*<\/version>)/, `$1${item.latest}$2`) : block.replace(/<\/dependency>/, `  <version>${item.latest}</version>\n</dependency>`);
+    });
+    if (!changed) throw new Error(`Could not locate ${item.name} in ${item.source}.`);
+  } else {
+    const notation = new RegExp(`(['"])${escapeRegex(item.name)}:[^'"]+\\1`, 'g');
+    if (!notation.test(source)) throw new Error(`Could not locate ${item.name} in ${item.source}.`);
+    updated = action === 'update' ? source.replace(notation, (_match, quote) => `${quote}${item.name}:${item.latest}${quote}`) : source.replace(/^.*['"]${escapeRegex(item.name)}:[^'"]+['"].*(?:\r?\n)?/gm, '');
+  }
+  await fs.writeFile(sourcePath, updated.replace(/\n{3,}/g, '\n\n'), 'utf8');
+  return { message: `${action === 'update' ? 'Updated' : 'Removed'} ${item.name} in ${item.source}.` };
+}
+function runProgram(command, args, cwd) {
+  const isWindows = process.platform === 'win32';
+  const executable = isWindows ? `${command}.cmd` : command;
+  return new Promise((resolve, reject) => {
+    const child = spawn(executable, args, { cwd, shell: isWindows, windowsHide: true });
+    let stderr = '';
+    child.stderr?.on('data', data => { stderr += data; });
+    child.on('error', error => reject(error));
+    child.on('close', code => code === 0 ? resolve({ message: `${command} completed successfully.` }) : reject(new Error(stderr || `${command} exited with code ${code}.`)));
   });
 }
 

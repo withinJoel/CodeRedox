@@ -11,7 +11,7 @@ import MarkdownIt from 'markdown-it';
 import sanitizeHtml from 'sanitize-html';
 import simpleGit from 'simple-git';
 import { buildPrompt } from './prompts.js';
-import { addLatestVersions, discoverPackages } from './package-service.js';
+import { addLatestVersions, discoverPackages, managePackage } from './package-service.js';
 
 const EXCLUDED = new Set(['node_modules', '.git', 'dist', 'build', '.next', 'coverage']);
 const SCAN_VERSION = 5;
@@ -129,6 +129,16 @@ export class ProjectService {
     const packages = await addLatestVersions(declared);
     project.packages = { packages, fetchedAt: Date.now() };
     return project.packages;
+  }
+  async managePackage(projectId, packageId, action) {
+    const project = this.projects.get(projectId);
+    if (!project) throw new Error('Open the project before changing a package.');
+    const packageInfo = await this.getPackages(projectId);
+    const item = packageInfo.packages.find(candidate => candidate.id === packageId);
+    if (!item) throw new Error('That package is no longer available. Refresh the Packages tab and try again.');
+    const result = await managePackage(project.path, project.files, item, action);
+    project.packages = null;
+    return result;
   }
 
   progress(projectId, checkId, status, count, error) { this.send('scan:progress', { projectId, checkId, status, count, error }); }
