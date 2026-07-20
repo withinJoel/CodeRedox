@@ -246,6 +246,91 @@ export class ProjectService {
     project.timeMachine = { cacheKey, data };
     return data;
   }
+  async getEvolutionForecast(projectId) {
+    const project = this.projects.get(projectId);
+    if (!project) throw new Error('Open the project before viewing its forecast.');
+    const cacheKey = project.cached?.lastScan || 'unscanned';
+    if (project.evolutionForecast?.cacheKey === cacheKey) return project.evolutionForecast.data;
+    const issues = Object.values(project.cached?.results || {}).flat();
+    const packages = await discoverPackages(project.path, project.files).catch(() => []);
+    let fileChanges = new Map();
+    let commitsAnalyzed = 0;
+    try {
+      const history = await simpleGit(project.path).raw(['log', '--max-count=60', '--format=__CRX_COMMIT__%H', '--name-only', '--']);
+      ({ fileChanges, commitsAnalyzed } = recentFileChangeStats(history));
+    } catch { /* A forecast can still use scan evidence when Git history is not available. */ }
+    const issuesByFile = new Map();
+    issues.forEach(issue => { const values = issuesByFile.get(issue.file) || []; values.push(issue); issuesByFile.set(issue.file, values); });
+    const forecasts = [];
+    const complexityChecks = new Set(['long-functions', 'complex-logic', 'nested-ternaries', 'parameter-bloat']);
+    const reliabilityChecks = new Set(['logic-conditions', 'error-handling', 'unsafe-operations', 'deprecated-apis']);
+    const securityChecks = new Set(['secrets', 'weak-cryptography', 'insecure-randomness', 'unvalidated-redirects', 'sql-injection', 'path-traversal', 'xss-sinks', 'tls-validation', 'unsafe-deserialization', 'regex-dos', 'insecure-cookies']);
+    for (const [file, fileIssues] of issuesByFile) {
+      const changes = fileChanges.get(file)?.size || 0;
+      const categories = new Set(fileIssues.map(issue => issue.type));
+      const complexity = fileIssues.filter(issue => complexityChecks.has(issue.type)).length;
+      const risk = fileIssues.filter(issue => reliabilityChecks.has(issue.type) || securityChecks.has(issue.type)).length;
+      const authSurface = /(?:^|[\\/_-])(?:auth|login|session|token|identity|credential)[\\/_-]|(?:auth|login|session|token|identity|credential)/i.test(file);
+      if (authSurface && changes >= 2 && risk >= 2) {
+        forecasts.push(makeForecast({
+          id: `auth:${file}`, kind: 'Authentication regression risk', confidence: changes >= 4 || risk >= 4 ? 'High' : 'Moderate', priority: 96,
+          file, evidence: [`Changed in ${changes} of the last ${commitsAnalyzed || 60} commits`, `${risk} active security or reliability findings`, 'Path is part of the authentication surface'],
+          prediction: `${file} is a change-heavy authentication surface with active validation or reliability signals. Further feature work is likely to increase regression risk until its responsibilities are reduced.`,
+          action: 'Review the linked findings, isolate validation and token/session handling, then add focused tests before extending this module.'
+        }));
+        continue;
+      }
+      if (changes >= 3 && complexity >= 2) {
+        forecasts.push(makeForecast({
+          id: `complexity:${file}`, kind: 'Feature-delivery bottleneck', confidence: changes >= 5 || complexity >= 4 ? 'High' : 'Moderate', priority: 82,
+          file, evidence: [`Changed in ${changes} recent commits`, `${complexity} active complexity findings`, `${categories.size} active audit categories in the same file`],
+          prediction: `${file} is both frequently edited and structurally complex. If the current change pattern continues, future features are likely to take longer and carry more review risk here.`,
+          action: 'Split a cohesive responsibility out of this file before adding the next feature, then cover the seam with tests.'
+        }));
+        continue;
+      }
+      if (changes >= 4 && fileIssues.length >= 4 && categories.size >= 3) {
+        forecasts.push(makeForecast({
+          id: `hotspot:${file}`, kind: 'Change-concentration hotspot', confidence: 'High', priority: 72,
+          file, evidence: [`Changed in ${changes} recent commits`, `${fileIssues.length} active findings`, `${categories.size} independent audit categories`],
+          prediction: `${file} is accumulating both change frequency and diverse quality signals. It is likely to become a maintenance hotspot unless the next change reduces, rather than adds to, its responsibilities.`,
+          action: 'Use the linked findings to define a small refactor boundary and keep the next feature outside that boundary where possible.'
+        }));
+      }
+    }
+    const duplicates = issues.filter(issue => issue.type === 'duplicate-code');
+    const duplicateFiles = new Set(duplicates.map(issue => issue.file));
+    if (duplicates.length >= 2 && duplicateFiles.size >= 2) forecasts.push(makeForecast({
+      id: 'duplicate-logic', kind: 'Repeated utility drift', confidence: duplicates.length >= 5 ? 'High' : 'Moderate', priority: 78,
+      evidence: [`${duplicates.length} duplicate-code findings`, `Spans ${duplicateFiles.size} files`, 'The scanner found repeated implementation patterns'],
+      prediction: `Repeated implementations already span ${duplicateFiles.size} files. New features are likely to add another variant and increase maintenance overhead until the shared behavior is consolidated.`,
+      action: 'Choose one canonical implementation, migrate callers incrementally, and add a small contract test around it.'
+    }));
+    const unusedPackages = packages.filter(item => item.usage === 'unused').length;
+    const packageSignals = issues.filter(issue => issue.type === 'package-integrity').length;
+    if (packages.length >= 12 && (unusedPackages >= 3 || packageSignals >= 3)) forecasts.push(makeForecast({
+      id: 'dependency-footprint', kind: 'Dependency maintenance drag', confidence: unusedPackages >= 5 || packageSignals >= 5 ? 'High' : 'Moderate', priority: 65,
+      evidence: [`${packages.length} declared packages`, `${unusedPackages} packages appear unused`, `${packageSignals} package-integrity findings`],
+      prediction: `The dependency footprint has unused or suspicious entries. If it grows at the current rate, upgrades, audits, and install time are likely to become progressively more expensive.`,
+      action: 'Remove confirmed unused packages first, then require every new dependency to have a direct import and an owner.'
+    }));
+    const runtimeSignals = issues.filter(issue => reliabilityChecks.has(issue.type)).length;
+    if (runtimeSignals >= 5 && !forecasts.some(item => item.kind === 'Authentication regression risk')) forecasts.push(makeForecast({
+      id: 'runtime-contracts', kind: 'Runtime contract fragility', confidence: runtimeSignals >= 9 ? 'High' : 'Moderate', priority: 60,
+      evidence: [`${runtimeSignals} active reliability or runtime findings`, `${new Set(issues.filter(issue => reliabilityChecks.has(issue.type)).map(issue => issue.type)).size} separate reliability checks triggered`],
+      prediction: `Several independent runtime-safety checks are active. Adding integrations or feature branches before these contracts are clarified is likely to raise the chance of behavior regressions.`,
+      action: 'Turn the highest-risk conditions into explicit guards and add tests for invalid input and failure paths.'
+    }));
+    const data = {
+      available: true,
+      commitsAnalyzed,
+      findingsAnalyzed: issues.length,
+      packagesAnalyzed: packages.length,
+      forecasts: forecasts.sort((left, right) => right.priority - left.priority).slice(0, 5)
+    };
+    project.evolutionForecast = { cacheKey, data };
+    return data;
+  }
   async deleteEmptyArtifact(projectId, issueId) {
     const project = this.projects.get(projectId);
     const issue = this.issues.get(issueId);
@@ -567,6 +652,23 @@ async function runProjectWorker(script, project, args, onLine) {
 }
 function timeMachinePriority(issue) {
   return ({ secrets: 8, 'sql-injection': 8, 'path-traversal': 8, 'xss-sinks': 8, 'unsafe-deserialization': 8, 'duplicate-code': 5, 'dead-code': 4, 'package-integrity': 4, 'logic-conditions': 4, 'error-handling': 4 }[issue.type] || 1);
+}
+function recentFileChangeStats(logOutput) {
+  const fileChanges = new Map();
+  let currentCommit = '';
+  let commitsAnalyzed = 0;
+  logOutput.split(/\r?\n/).forEach(line => {
+    if (line.startsWith('__CRX_COMMIT__')) { currentCommit = line.slice('__CRX_COMMIT__'.length); commitsAnalyzed += 1; return; }
+    const file = line.trim().replaceAll('\\', '/');
+    if (!currentCommit || !file) return;
+    const commits = fileChanges.get(file) || new Set();
+    commits.add(currentCommit);
+    fileChanges.set(file, commits);
+  });
+  return { fileChanges, commitsAnalyzed };
+}
+function makeForecast({ id, kind, confidence, priority, prediction, action, evidence, file = '' }) {
+  return { id, kind, confidence, priority, prediction, action, evidence, file };
 }
 async function mapWithConcurrency(items, limit, worker) {
   const results = new Array(items.length);

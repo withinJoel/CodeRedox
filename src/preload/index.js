@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld("api", {
   getPackages: (projectId, force = false) => ipcRenderer.invoke("project:get-packages", projectId, force),
   getOverview: (projectId) => ipcRenderer.invoke("project:get-overview", projectId),
   getTimeMachine: (projectId) => ipcRenderer.invoke("project:get-time-machine", projectId),
+  getEvolutionForecast: (projectId) => ipcRenderer.invoke("project:get-evolution-forecast", projectId),
   managePackage: (projectId, packageId, action) => ipcRenderer.invoke("project:manage-package", projectId, packageId, action),
   deleteEmptyArtifact: (projectId, issueId) => ipcRenderer.invoke("issue:delete-empty-artifact", projectId, issueId),
   fixViaCodex: (projectId, issueId) => ipcRenderer.invoke("issue:fix-via-codex", projectId, issueId),
