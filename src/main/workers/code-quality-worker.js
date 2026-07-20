@@ -3,7 +3,7 @@ import path from 'node:path';
 
 const [root, filesArg, rule] = process.argv.slice(2);
 const files = JSON.parse(await fs.readFile(filesArg, 'utf8'));
-const SOURCE_FILE = /\.(?:[cm]?js|jsx|tsx?|mjs|cjs)$/i;
+const SOURCE_FILE = /\.(?:[cm]?js|jsx|tsx?|mjs|cjs|java|php|py|rb|go|rs|cs|swift|kt)$/i;
 const SECRET_FILE = /(?:\.(?:[cm]?js|jsx|tsx?|mjs|cjs|json|ya?ml|toml|ini|conf|config)$|(?:^|\/)(?:\.env(?:\..*)?|\.npmrc|\.pypirc|id_rsa|credentials(?:\.[\w-]+)?|secrets?(?:\.[\w-]+)?))$/i;
 const emit = issue => process.stdout.write(`${JSON.stringify({ type: 'issue', issue })}\n`);
 
@@ -17,7 +17,11 @@ function inspect(ruleName, lines) {
     case 'logic-conditions': return findLogicConditions(lines);
     case 'error-handling': return findEmptyCatchBlocks(lines);
     case 'secrets': return findSecrets(lines);
+    case 'weak-cryptography': return findWeakCryptography(lines);
+    case 'insecure-randomness': return findInsecureRandomness(lines);
+    case 'unvalidated-redirects': return findUnvalidatedRedirects(lines);
     case 'unsafe-operations': return findUnsafeOperations(lines);
+    case 'deprecated-apis': return findDeprecatedApis(lines);
     default: return [];
   }
 }
@@ -147,6 +151,49 @@ function findUnsafeOperations(lines) {
     return [];
   });
 }
+
+function findWeakCryptography(lines) {
+  return lines.flatMap((line, index) => {
+    const source = withoutLineComments(line);
+    const algorithm = source.match(/\b(?:createHash|MessageDigest\.getInstance|hash(?:lib)?\.(?:new|md5|sha1))\s*\(?\s*['"]?(md5|sha-?1)\b/i)
+      || source.match(/\b(?:createCipher|createDecipher|Cipher\.getInstance)\s*\(?\s*['"]?((?:des|rc4|rc2)\b[^'"]*)/i);
+    if (!algorithm) return [];
+    return [{ line: index + 1, symbol: algorithm[1], reason: `${algorithm[1].toUpperCase()} is a legacy cryptographic algorithm. Use a modern, supported algorithm such as SHA-256 or AES-GCM.` }];
+  });
+}
+
+function findInsecureRandomness(lines) {
+  return lines.flatMap((line, index) => {
+    if (!/\bMath\.random\s*\(/.test(codeOnly(line))) return [];
+    const context = lines.slice(Math.max(0, index - 1), Math.min(lines.length, index + 2)).join(' ');
+    if (!/(?:token|session|auth|password|secret|api[_-]?key|nonce|csrf|reset)/i.test(context)) return [];
+    return [{ line: index + 1, symbol: 'Math.random', reason: 'Math.random() is predictable for a security-sensitive value. Use crypto.getRandomValues() or a cryptographically secure server-side generator.' }];
+  });
+}
+
+function findUnvalidatedRedirects(lines) {
+  return lines.flatMap((line, index) => {
+    const source = withoutLineComments(line);
+    if (/\b(?:res|response)\.redirect\s*\(\s*(?:req|request)\.(?:query|params|body)\b/i.test(source)
+      || /\b(?:location(?:\.href)?|window\.location)\s*=\s*(?:req|request)\.(?:query|params)\b/i.test(source)) {
+      return [{ line: index + 1, symbol: 'redirect', reason: 'Redirect target comes directly from request input. Validate it against an allowlist to prevent open redirects.' }];
+    }
+    return [];
+  });
+}
+
+function findDeprecatedApis(lines) {
+  return lines.flatMap((line, index) => {
+    const code = codeOnly(line);
+    if (/\bnew\s+Buffer\s*\(|(?<![\w$.])Buffer\s*\(/.test(code)) return [{ line: index + 1, symbol: 'Buffer', reason: 'Legacy Buffer construction is unsafe. Use Buffer.from(), Buffer.alloc(), or Buffer.allocUnsafe() explicitly.' }];
+    if (/\.(?:substr)\s*\(/.test(code)) return [{ line: index + 1, symbol: 'substr', reason: 'String.prototype.substr() is legacy. Use slice() or substring() for clearer, supported behavior.' }];
+    if (/(?<![\w$.])(?:escape|unescape)\s*\(/.test(code)) return [{ line: index + 1, symbol: 'escape', reason: 'The global escape/unescape APIs are deprecated. Use encodeURIComponent/decodeURIComponent or a purpose-built encoder.' }];
+    if (/\bfs\.exists\s*\(/.test(code)) return [{ line: index + 1, symbol: 'fs.exists', reason: 'fs.exists() is deprecated. Use fs.access(), fs.existsSync(), or fs.promises.access() as appropriate.' }];
+    return [];
+  });
+}
+
+function withoutLineComments(line) { return line.replace(/\/\/.*$/, '').replace(/\/\*[\s\S]*?\*\//g, ''); }
 
 function functionsIn(lines) {
   const found = [];

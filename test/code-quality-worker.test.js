@@ -56,3 +56,29 @@ const API_KEY = process.env.API_KEY;
   assert.deepEqual(issues.map(issue => issue.line), [2, 3]);
   assert.equal(issues[0].symbol, 'OpenAI API key');
 });
+
+test('finds focused security and legacy API audit findings', async () => {
+  const source = `
+const resetToken = Math.random();
+const digest = crypto.createHash('md5');
+res.redirect(req.query.next);
+const payload = new Buffer('legacy');
+`;
+  const [randomness, crypto, redirect, deprecated] = await Promise.all([
+    scan('insecure-randomness', source),
+    scan('weak-cryptography', source),
+    scan('unvalidated-redirects', source),
+    scan('deprecated-apis', source)
+  ]);
+  assert.deepEqual(randomness.map(issue => issue.line), [2]);
+  assert.deepEqual(crypto.map(issue => issue.line), [3]);
+  assert.deepEqual(redirect.map(issue => issue.line), [4]);
+  assert.deepEqual(deprecated.map(issue => issue.line), [5]);
+});
+
+test('does not flag ordinary random values or fixed redirects', async () => {
+  const randomness = await scan('insecure-randomness', 'const visualOffset = Math.random() * 20;');
+  const redirects = await scan('unvalidated-redirects', "res.redirect('/account');");
+  assert.equal(randomness.length, 0);
+  assert.equal(redirects.length, 0);
+});
