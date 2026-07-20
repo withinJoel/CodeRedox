@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld("api", {
   deleteEmptyArtifact: (projectId, issueId) => ipcRenderer.invoke("issue:delete-empty-artifact", projectId, issueId),
   fixViaCodex: (projectId, issueId) => ipcRenderer.invoke("issue:fix-via-codex", projectId, issueId),
   fixCheckViaCodex: (projectId, checkId, issueIds) => ipcRenderer.invoke("issue:fix-check-via-codex", projectId, checkId, issueIds),
+  chatWithCodex: (projectId, request) => ipcRenderer.invoke("project:chat-with-codex", projectId, request),
   getIssueCommit: (projectId, issueId) => ipcRenderer.invoke("issue:get-commit", projectId, issueId),
   getFixPrompt: (issueId) =>
     ipcRenderer.invoke("issue:get-fix-prompt", issueId),
@@ -29,4 +30,6 @@ contextBridge.exposeInMainWorld("api", {
     ipcRenderer.on("scan:results", (_event, data) => callback(data)),
   onCodexProgress: (callback) =>
     ipcRenderer.on("codex:progress", (_event, data) => callback(data)),
+  onCodexChatProgress: (callback) =>
+    ipcRenderer.on("codex:chat-progress", (_event, data) => callback(data)),
 });

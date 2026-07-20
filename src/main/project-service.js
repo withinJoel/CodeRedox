@@ -427,6 +427,30 @@ export class ProjectService {
     project.cached = null;
     return { message: `Codex completed ${issues.length} ${check.label.toLowerCase()} fixes.` };
   }
+  async chatWithCodex(projectId, { message, mode = 'ask', history = [] } = {}) {
+    const project = this.projects.get(projectId);
+    if (!project) throw new Error('Open the project before starting a Codex chat.');
+    const request = String(message || '').trim();
+    if (!request) throw new Error('Enter a message for Codex.');
+    if (!['ask', 'work'].includes(mode)) throw new Error('Unknown Codex chat mode.');
+    const context = history.slice(-8).map(entry => `${entry.role === 'user' ? 'User' : 'Codex'}: ${String(entry.content || '').slice(0, 3500)}`).join('\n\n');
+    const instructions = mode === 'work'
+      ? 'The user explicitly authorized you to work in this repository. Make only the changes needed for the request, preserve project conventions, and explain what you changed and how you verified it.'
+      : 'Answer as a repository guide. Do not modify files, run package managers, or make any external changes. Base your answer on the current project.';
+    const taskFile = `.coderedox-codex-chat-${crypto.randomUUID()}.md`;
+    const taskPath = path.join(project.path, taskFile);
+    const task = `# Code Redox repository chat\n\nYou are Code Redox's repository assistant. ${instructions}\n\nProject root: ${project.path}\n\n${context ? `Recent conversation:\n${context}\n\n` : ''}Current user request:\n${request}\n\nRespond directly to the user with a concise, useful answer.`;
+    await fs.writeFile(taskPath, task, { encoding: 'utf8', flag: 'wx' });
+    let result;
+    try {
+      result = await runCodexCli(project.path, `Read ${taskFile} in the current project and follow its instructions.`, event => this.send('codex:chat-progress', { projectId, ...event }), false, { sandbox: mode === 'work' ? 'workspace-write' : 'read-only' });
+    } finally {
+      await fs.unlink(taskPath).catch(() => {});
+    }
+    if (mode === 'work') project.cached = null;
+    const response = String(result?.stdout || '').trim();
+    return { response: response || (mode === 'work' ? 'Codex completed the requested repository task.' : 'Codex completed the repository analysis.'), changedProject: mode === 'work' };
+  }
 
   progress(projectId, checkId, status, count, error) { this.send('scan:progress', { projectId, checkId, status, count, error }); }
   setCheckActive(projectId, checkId, active) {
@@ -626,12 +650,11 @@ function languageFor(file) { return LANGUAGE_BY_EXTENSION[path.extname(file).sli
 function shikiLanguage(language) { return ({ JavaScript: 'javascript', TypeScript: 'typescript', Python: 'python', JSON: 'json', HTML: 'html', CSS: 'css', Markdown: 'markdown', Shell: 'shell' })[language] || 'text'; }
 function localBin(name) { const extension = process.platform === 'win32' ? '.cmd' : ''; const target = path.join(app.getAppPath(), 'node_modules', '.bin', `${name}${extension}`); return fssync.existsSync(target) ? target : null; }
 function run(command, args, options) { return new Promise((resolve, reject) => { const child = spawn(command, args, { ...options, shell: false, windowsHide: true }); let stdout = '', stderr = ''; child.stdout?.on('data', data => { stdout += data; }); child.stderr?.on('data', data => { stderr += data; }); child.on('error', error => reject(Object.assign(error, { stdout, stderr }))); child.on('close', code => code === 0 ? resolve({ stdout, stderr }) : reject(Object.assign(new Error(stderr || `${path.basename(command)} exited ${code}`), { stdout, stderr }))); }); }
-async function runCodexCli(cwd, prompt, onProgress, retriedAfterUpdate = false) {
+async function runCodexCli(cwd, prompt, onProgress, retriedAfterUpdate = false, options = {}) {
   const candidates = codexCliCandidates();
   const errors = [];
   for (const command of candidates) try {
-    await runCodexCommand(command, ['exec', '--sandbox', 'workspace-write', '--skip-git-repo-check', prompt], cwd, onProgress, 'Codex finished successfully.');
-    return;
+    return await runCodexCommand(command, ['exec', '--sandbox', options.sandbox || 'workspace-write', '--skip-git-repo-check', prompt], cwd, onProgress, 'Codex finished successfully.');
   } catch (error) {
     const message = error.message || String(error);
     if (!retriedAfterUpdate && /requires a newer version of Codex/i.test(message)) {
@@ -641,32 +664,37 @@ async function runCodexCli(cwd, prompt, onProgress, retriedAfterUpdate = false) 
       } catch (updateError) {
         if (!/Could not detect the Codex installation method/i.test(updateError.message || '')) throw updateError;
         onProgress?.({ status: 'output', text: 'The desktop-managed CLI cannot update itself. Downloading the latest official Codex CLI for this fix…' });
-        return runLatestCodexCli(cwd, prompt, onProgress);
+        return runLatestCodexCli(cwd, prompt, onProgress, options);
       }
-      return runCodexCli(cwd, prompt, onProgress, true);
+      return runCodexCli(cwd, prompt, onProgress, true, options);
     }
     if (!/ENOENT|not recognized as an internal or external command/i.test(message)) throw new Error(`Codex CLI failed. ${message}`);
     errors.push(message);
   }
   throw new Error(`Unable to run the Codex CLI. Install the standalone Codex CLI or set CODEX_CLI_PATH. ${errors.join(' | ')}`.trim());
 }
-async function runLatestCodexCli(cwd, prompt, onProgress) {
+async function runLatestCodexCli(cwd, prompt, onProgress, options = {}) {
   const npxScript = npxCliScript();
   if (!npxScript) throw new Error('Codex needs an update, but npm is unavailable to download the latest CLI. Update the Codex desktop app and try again.');
-  const args = [npxScript, '--yes', '@openai/codex@latest', 'exec', '--sandbox', 'workspace-write', '--skip-git-repo-check', prompt];
-  await runCodexCommand(process.execPath, args, cwd, onProgress, 'Codex finished successfully using the latest CLI.', { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
+  const args = [npxScript, '--yes', '@openai/codex@latest', 'exec', '--sandbox', options.sandbox || 'workspace-write', '--skip-git-repo-check', prompt];
+  return runCodexCommand(process.execPath, args, cwd, onProgress, 'Codex finished successfully using the latest CLI.', { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
 }
 function runCodexCommand(command, args, cwd, onProgress, completedText, options = {}) {
   return new Promise((resolve, reject) => {
-    const shell = process.platform === 'win32' && /\.cmd$/i.test(command);
-    const child = spawn(command, args, { ...options, cwd, shell, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
-    let stderr = '';
+    const isBatch = process.platform === 'win32' && /\.cmd$/i.test(command);
+    const executable = isBatch ? (process.env.ComSpec || process.env.COMSPEC || 'cmd.exe') : command;
+    const commandLine = isBatch ? [command, ...args].map(quoteForCmd).join(' ') : null;
+    const child = spawn(executable, isBatch ? ['/d', '/s', '/c', commandLine] : args, { ...options, cwd, shell: false, windowsHide: true, detached: false, stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdout = ''; let stderr = '';
     onProgress?.({ status: 'started', text: `> ${path.basename(command)} ${args.slice(0, 4).join(' ')}` });
-    child.stdout?.on('data', data => onProgress?.({ status: 'output', text: data.toString().slice(-4000) }));
+    child.stdout?.on('data', data => { const text = data.toString(); stdout += text; onProgress?.({ status: 'output', text: text.slice(-4000) }); });
     child.stderr?.on('data', data => { const text = data.toString(); stderr += text; onProgress?.({ status: 'output', text: text.slice(-4000) }); });
     child.on('error', error => reject(error));
-    child.on('close', code => code === 0 ? (onProgress?.({ status: 'completed', text: completedText }), resolve()) : reject(new Error(stderr || `Codex exited with code ${code}.`)));
+    child.on('close', code => code === 0 ? (onProgress?.({ status: 'completed', text: completedText }), resolve({ stdout })) : reject(new Error(stderr || `Codex exited with code ${code}.`)));
   });
+}
+function quoteForCmd(value) {
+  return `"${String(value).replace(/["^&|<>()%!]/g, character => character === '%' ? '%%' : `^${character}`)}"`;
 }
 function npxCliScript() {
   const nodeDirectories = [...new Set([path.dirname(process.execPath), ...(process.env.Path || process.env.PATH || '').split(path.delimiter).filter(Boolean)])];
