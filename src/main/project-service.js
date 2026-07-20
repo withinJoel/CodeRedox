@@ -53,23 +53,29 @@ export class ProjectService {
     const cached = await this.readCache(id);
     const files = await listFiles(root);
     const metadata = await collectMetadata(root, files);
-    const project = { id, path: root, name: path.basename(root), files, metadata, cached };
+    const disabledChecks = this.disabledChecksFor(id);
+    const project = { id, path: root, name: path.basename(root), files, metadata, cached, disabledChecks };
     this.projects.set(id, project);
     this.addRecent(project);
     if (cached?.results) this.indexIssues(cached.results);
-    return { id, name: project.name, path: root, metadata, checks: CHECKS, cachedResults: cached?.results ?? null, lastScan: cached?.lastScan ?? null };
+    return { id, name: project.name, path: root, metadata, checks: CHECKS, disabledChecks, cachedResults: cached?.results ?? null, lastScan: cached?.lastScan ?? null };
   }
 
   async startScan(projectId) {
     const project = this.projects.get(projectId);
     if (!project) throw new Error('Open the project before scanning it.');
     const fingerprint = await fileFingerprint(project.files);
-    if (project.cached?.scanVersion === SCAN_VERSION && project.cached?.fingerprint === fingerprint && project.cached?.results) {
+    const checkConfigSignature = [...project.disabledChecks].sort().join('|');
+    if (project.cached?.scanVersion === SCAN_VERSION && project.cached?.checkConfigSignature === checkConfigSignature && project.cached?.fingerprint === fingerprint && project.cached?.results) {
       this.send('scan:progress', { projectId, checkId: 'all', status: 'done', cached: true });
       this.send('scan:results', { projectId, results: project.cached.results, cached: true, fixedCount: project.cached.fixedCount || 0 });
       return { cached: true, results: project.cached.results, fixedCount: project.cached.fixedCount || 0 };
     }
-    CHECKS.forEach(check => { this.progress(projectId, check.id, 'pending'); this.send('scan:results', { projectId, checkId: check.id, issues: [], reset: true }); });
+    CHECKS.forEach(check => {
+      const disabled = project.disabledChecks.includes(check.id);
+      this.progress(projectId, check.id, disabled ? 'disabled' : 'pending', 0);
+      this.send('scan:results', { projectId, checkId: check.id, issues: [], reset: true });
+    });
     const runners = {
       'dead-code': () => this.runKnip(project),
       'duplicate-code': () => this.runJscpd(project),
@@ -86,7 +92,8 @@ export class ProjectService {
       'package-integrity': () => this.runPackageIntegrity(project)
     };
     let scanHadErrors = false;
-    const resultPairs = await Promise.all(CHECKS.map(async check => {
+    const activeChecks = CHECKS.filter(check => !project.disabledChecks.includes(check.id));
+    const resultPairs = await Promise.all(activeChecks.map(async check => {
       this.progress(projectId, check.id, 'running');
       try {
         const issues = await runners[check.id]();
@@ -99,12 +106,13 @@ export class ProjectService {
         return [check.id, []];
       }
     }));
-    const results = Object.fromEntries(resultPairs);
-    const previousIds = new Set(Object.values(project.cached?.results || {}).flat().map(issue => issue.id));
-    const currentIds = new Set(Object.values(results).flat().map(issue => issue.id));
+    const resultMap = Object.fromEntries(resultPairs);
+    const results = Object.fromEntries(CHECKS.map(check => [check.id, resultMap[check.id] || []]));
+    const previousIds = new Set(activeChecks.flatMap(check => project.cached?.results?.[check.id] || []).map(issue => issue.id));
+    const currentIds = new Set(activeChecks.flatMap(check => results[check.id]).map(issue => issue.id));
     const fixedCount = [...previousIds].filter(id => !currentIds.has(id)).length;
     if (!scanHadErrors) {
-      project.cached = { scanVersion: SCAN_VERSION, fingerprint, lastScan: new Date().toISOString(), results, fixedCount };
+      project.cached = { scanVersion: SCAN_VERSION, checkConfigSignature, fingerprint, lastScan: new Date().toISOString(), results, fixedCount };
       await this.writeCache(projectId, project.cached);
     }
     this.indexIssues(results);
@@ -124,6 +132,17 @@ export class ProjectService {
   }
 
   progress(projectId, checkId, status, count, error) { this.send('scan:progress', { projectId, checkId, status, count, error }); }
+  setCheckActive(projectId, checkId, active) {
+    const project = this.projects.get(projectId);
+    if (!project) throw new Error('Open the project before changing its checks.');
+    if (!CHECKS.some(check => check.id === checkId)) throw new Error('Unknown check.');
+    const disabled = new Set(project.disabledChecks);
+    active ? disabled.delete(checkId) : disabled.add(checkId);
+    project.disabledChecks = [...disabled];
+    const settings = this.store.get('disabledChecksByProject', {});
+    this.store.set('disabledChecksByProject', { ...settings, [projectId]: project.disabledChecks });
+    return { disabledChecks: project.disabledChecks };
+  }
   getFixPrompt(issueId) { const issue = this.issues.get(issueId); if (!issue) throw new Error('That issue is no longer available.'); return buildPrompt(issue); }
   async highlight(issueId) {
     const issue = this.issues.get(issueId); if (!issue?.snippet) return '';
@@ -135,6 +154,7 @@ export class ProjectService {
     const current = this.store.get('recentProjects', []).filter(item => item.path !== project.path);
     this.store.set('recentProjects', [{ id: project.id, name: project.name, path: project.path, lastOpened: new Date().toISOString() }, ...current].slice(0, 12));
   }
+  disabledChecksFor(projectId) { return this.store.get('disabledChecksByProject', {})[projectId] || []; }
   cachePath(id) { return path.join(app.getPath('userData'), 'projects', `${id}.json`); }
   async readCache(id) { try { return JSON.parse(await fs.readFile(this.cachePath(id), 'utf8')); } catch { return null; } }
   async writeCache(id, data) { await fs.mkdir(path.dirname(this.cachePath(id)), { recursive: true }); await fs.writeFile(this.cachePath(id), JSON.stringify(data), 'utf8'); }

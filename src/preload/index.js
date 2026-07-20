@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld("api", {
     ipcRenderer.invoke("project:open", projectPath),
   listRecentProjects: () => ipcRenderer.invoke("project:list-recent"),
   runScan: (projectId) => ipcRenderer.invoke("scan:start", projectId),
+  setCheckActive: (projectId, checkId, active) => ipcRenderer.invoke("project:set-check-active", projectId, checkId, active),
   getPackages: (projectId, force = false) => ipcRenderer.invoke("project:get-packages", projectId, force),
   getFixPrompt: (issueId) =>
     ipcRenderer.invoke("issue:get-fix-prompt", issueId),
