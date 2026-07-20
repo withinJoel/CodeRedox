@@ -1,18 +1,53 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, screen } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Store from 'electron-store';
 import { ProjectService } from './project-service.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const store = new Store({ name: 'settings', defaults: { introSeen: false, recentProjects: [] } });
+const store = new Store({ name: 'settings', defaults: { introSeen: false, recentProjects: [], windowState: null } });
 let windowRef;
 let projects;
 
+const defaultWindowState = { width: 1380, height: 900 };
+
+function isFiniteNumber(value) {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isVisibleOnConnectedDisplay(bounds) {
+  return screen.getAllDisplays().some(({ workArea }) => (
+    bounds.x < workArea.x + workArea.width
+    && bounds.x + bounds.width > workArea.x
+    && bounds.y < workArea.y + workArea.height
+    && bounds.y + bounds.height > workArea.y
+  ));
+}
+
+function getSavedWindowState() {
+  const saved = store.get('windowState');
+  if (!saved || !isFiniteNumber(saved.width) || !isFiniteNumber(saved.height)) return defaultWindowState;
+
+  const state = {
+    width: Math.max(1050, Math.round(saved.width)),
+    height: Math.max(700, Math.round(saved.height))
+  };
+  if (isFiniteNumber(saved.x) && isFiniteNumber(saved.y)) {
+    const bounds = { ...state, x: Math.round(saved.x), y: Math.round(saved.y) };
+    if (isVisibleOnConnectedDisplay(bounds)) Object.assign(state, { x: bounds.x, y: bounds.y });
+  }
+  return state;
+}
+
+function saveWindowState(window) {
+  const bounds = window.isMaximized() ? window.getNormalBounds() : window.getBounds();
+  store.set('windowState', { ...bounds, isMaximized: window.isMaximized() });
+}
+
 function createWindow() {
+  const savedState = getSavedWindowState();
   windowRef = new BrowserWindow({
-    width: 1380,
-    height: 900,
+    ...savedState,
     minWidth: 1050,
     minHeight: 700,
     frame: true,
@@ -26,6 +61,8 @@ function createWindow() {
     }
   });
   windowRef.loadFile(path.join(here, '../renderer/index.html'));
+  windowRef.once('close', () => saveWindowState(windowRef));
+  if (store.get('windowState')?.isMaximized) windowRef.maximize();
 }
 
 app.whenReady().then(() => {
