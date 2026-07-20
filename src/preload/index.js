@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld("api", {
   runScan: (projectId) => ipcRenderer.invoke("scan:start", projectId),
   setCheckActive: (projectId, checkId, active) => ipcRenderer.invoke("project:set-check-active", projectId, checkId, active),
   getPackages: (projectId, force = false) => ipcRenderer.invoke("project:get-packages", projectId, force),
+  getOverview: (projectId) => ipcRenderer.invoke("project:get-overview", projectId),
   managePackage: (projectId, packageId, action) => ipcRenderer.invoke("project:manage-package", projectId, packageId, action),
   deleteEmptyArtifact: (projectId, issueId) => ipcRenderer.invoke("issue:delete-empty-artifact", projectId, issueId),
   getFixPrompt: (issueId) =>

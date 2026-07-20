@@ -143,6 +143,14 @@ export class ProjectService {
     project.packages = null;
     return result;
   }
+  async getOverview(projectId) {
+    const project = this.projects.get(projectId);
+    if (!project) throw new Error('Open the project before viewing its overview.');
+    if (project.overview) return project.overview;
+    const [githubContributors, packages] = await Promise.all([getGitHubContributors(project.metadata.git.remote), discoverPackages(project.path, project.files)]);
+    project.overview = { contributors: githubContributors.length ? githubContributors : project.metadata.git.contributors, packages: { count: packages.length, ecosystems: [...new Set(packages.map(item => item.ecosystem))] } };
+    return project.overview;
+  }
   async deleteEmptyArtifact(projectId, issueId) {
     const project = this.projects.get(projectId);
     const issue = this.issues.get(issueId);
@@ -266,12 +274,12 @@ async function listFiles(root) {
 async function fileFingerprint(files) { const values = await Promise.all(files.map(async file => { const stat = await fs.stat(file.full); return `${file.relative}:${stat.mtimeMs}:${stat.size}`; })); return sha(values.sort().join('|')); }
 async function collectMetadata(root, files) {
   const [readme, gitInfo, license] = await Promise.all([readReadme(root), getGitInfo(root), detectLicense(root)]);
-  const languageTotals = new Map(); let size = 0;
-  for (const file of files) { const stat = await fs.stat(file.full); size += stat.size; const language = LANGUAGE_BY_EXTENSION[file.extension]; if (language) languageTotals.set(language[0], (languageTotals.get(language[0]) || 0) + stat.size); }
+  const languageTotals = new Map(); const topLevel = new Map(); const largestFiles = []; let size = 0;
+  for (const file of files) { const stat = await fs.stat(file.full); size += stat.size; const language = LANGUAGE_BY_EXTENSION[file.extension]; if (language) languageTotals.set(language[0], (languageTotals.get(language[0]) || 0) + stat.size); const segment = file.relative.split('/')[0] || 'Root files'; topLevel.set(segment, (topLevel.get(segment) || 0) + 1); largestFiles.push({ path: file.relative, size: stat.size }); }
   const total = [...languageTotals.values()].reduce((a, b) => a + b, 0) || 1;
   const fallbackLanguages = [...languageTotals].sort((a, b) => b[1] - a[1]).map(([name, bytes]) => ({ name, percent: Math.round(bytes / total * 1000) / 10, color: Object.values(LANGUAGE_BY_EXTENSION).find(value => value[0] === name)?.[1] || '#8e8e93' }));
   const languages = await analyseLanguages(files, fallbackLanguages);
-  return { readme, languages, license, git: gitInfo, size, fileCount: files.length };
+  return { readme, languages, license, git: gitInfo, signals: projectSignals(files, license), largestFiles: largestFiles.sort((left, right) => right.size - left.size).slice(0, 5), topLevel: [...topLevel].sort((left, right) => right[1] - left[1]).slice(0, 6).map(([name, count]) => ({ name, count })), size, fileCount: files.length };
 }
 async function analyseLanguages(files, fallback) {
   try {
@@ -304,10 +312,10 @@ async function readReadme(root) {
 async function getGitInfo(root) {
   try {
     const git = simpleGit(root);
-    const [remotes, log, branch] = await Promise.all([git.getRemotes(true), git.log({ maxCount: 1 }), git.branchLocal()]);
+    const [remotes, log, branch, firstCommit, shortlog, recentCommits] = await Promise.all([git.getRemotes(true), git.log({ maxCount: 1 }), git.branchLocal(), git.raw(['log', '--reverse', '--format=%aI', '-1']), git.raw(['shortlog', '-sne', '--all']), git.raw(['rev-list', '--count', '--since=30 days ago', 'HEAD'])]);
     const remote = remotes[0]?.refs?.fetch || '';
-    return { provider: providerFor(remote), remote, commits: log.total || 0, branch: branch.current || 'HEAD', latest: log.latest ? { hash: log.latest.hash?.slice(0, 7), message: log.latest.message, date: log.latest.date } : null };
-  } catch { return { provider: 'Local', remote: '', commits: 0, branch: 'No branch', latest: null }; }
+    return { provider: providerFor(remote), remote, commits: log.total || 0, recentCommits: Number(recentCommits.trim()) || 0, branch: branch.current || 'HEAD', firstCommit: firstCommit.trim() || null, contributors: parseShortlog(shortlog), latest: log.latest ? { hash: log.latest.hash?.slice(0, 7), message: log.latest.message, date: log.latest.date } : null };
+  } catch { return { provider: 'Local', remote: '', commits: 0, recentCommits: 0, branch: 'No branch', firstCommit: null, contributors: [], latest: null }; }
 }
 
 async function detectLicense(root) {
@@ -324,6 +332,9 @@ async function detectLicense(root) {
 }
 function normaliseLicense(text) { return text.replace(/copyright\s*\(c\)?\s*\[?year\]?[^\n]*/ig, '').replace(/\s+/g, ' ').trim().toLowerCase(); }
 function providerFor(remote) { if (/github\.com/i.test(remote)) return 'GitHub'; if (/gitlab\.com/i.test(remote)) return 'GitLab'; if (/bitbucket\.org/i.test(remote)) return 'Bitbucket'; return remote ? 'Other' : 'Local'; }
+function projectSignals(files, license) { const names = files.map(file => file.relative.toLowerCase()); return { readme: names.some(name => /(?:^|\/)readme(?:\.(?:md|markdown|mdown|mkdn))?$/.test(name)), license: license.name !== 'No license detected', tests: names.some(name => /(?:^|\/)(?:test|tests|__tests__|spec)(?:\/|\.|$)/.test(name) || /(?:\.test|\.spec)\.[\w]+$/.test(name)), ci: names.some(name => /(?:^|\/)(?:\.github\/workflows|\.gitlab-ci\.yml|azure-pipelines\.yml|jenkinsfile)/.test(name)), manifest: names.some(name => /(?:^|\/)(?:package\.json|composer\.json|pom\.xml|build\.gradle(?:\.kts)?|requirements[^/]*\.txt|go\.mod|cargo\.toml)$/.test(name)) }; }
+function parseShortlog(value) { return value.split(/\r?\n/).flatMap(line => { const match = line.trim().match(/^(\d+)\s+(.+?)\s+<([^>]+)>$/); if (!match) return []; const [, commits, name, email] = match; const hash = crypto.createHash('md5').update(email.trim().toLowerCase()).digest('hex'); return [{ commits: Number(commits), name, avatar: `https://www.gravatar.com/avatar/${hash}?d=identicon&s=96` }]; }).slice(0, 12); }
+async function getGitHubContributors(remote) { const match = remote.match(/github\.com[/:]([^/]+)\/([^/#]+?)(?:\.git)?$/i); if (!match) return []; const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 5000); try { const response = await fetch(`https://api.github.com/repos/${encodeURIComponent(match[1])}/${encodeURIComponent(match[2])}/contributors?per_page=12`, { signal: controller.signal, headers: { accept: 'application/vnd.github+json' } }); if (!response.ok) return []; const contributors = await response.json(); return Array.isArray(contributors) ? contributors.map(item => ({ name: item.login, commits: item.contributions, avatar: item.avatar_url, profile: item.html_url })) : []; } catch { return []; } finally { clearTimeout(timer); } }
 function languageFor(file) { return LANGUAGE_BY_EXTENSION[path.extname(file).slice(1).toLowerCase()]?.[0] || 'text'; }
 function shikiLanguage(language) { return ({ JavaScript: 'javascript', TypeScript: 'typescript', Python: 'python', JSON: 'json', HTML: 'html', CSS: 'css', Markdown: 'markdown', Shell: 'shell' })[language] || 'text'; }
 function localBin(name) { const extension = process.platform === 'win32' ? '.cmd' : ''; const target = path.join(app.getAppPath(), 'node_modules', '.bin', `${name}${extension}`); return fssync.existsSync(target) ? target : null; }
