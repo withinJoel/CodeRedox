@@ -196,8 +196,15 @@ export class ProjectService {
     const project = this.projects.get(projectId);
     const issue = this.issues.get(issueId);
     if (!project || !issue || issue.projectId !== projectId) throw new Error('That finding is no longer available.');
-    const prompt = `Fix this single finding in the current project.\n\n${buildPrompt(issue)}\n\nWork only on files needed for this finding. Preserve project conventions, do not change unrelated code, and verify the fix before finishing.`;
-    await runCodexCli(project.path, prompt, event => this.send('codex:progress', { projectId, ...event }));
+    const taskFile = `.coderedox-codex-task-${crypto.randomUUID()}.md`;
+    const taskPath = path.join(project.path, taskFile);
+    const task = `# CodeRedox single-finding fix task\n\nFix only the finding below. Work only on files required by it, preserve project conventions, do not change unrelated code, and verify the fix before finishing.\n\n## Finding\n${buildPrompt(issue)}`;
+    await fs.writeFile(taskPath, task, { encoding: 'utf8', flag: 'wx' });
+    try {
+      await runCodexCli(project.path, `Read ${taskFile} in the current project and complete the requested fix. Do not change unrelated code.`, event => this.send('codex:progress', { projectId, ...event }));
+    } finally {
+      await fs.unlink(taskPath).catch(() => {});
+    }
     project.cached = null;
     return { message: 'Codex completed the requested fix.' };
   }
