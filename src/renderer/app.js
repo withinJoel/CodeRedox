@@ -76,6 +76,11 @@ renderProject = function renderProjectWithOverview() {
   const showProjectInfo = state.activeView === 'readme';
   const mainContent = state.activeView === 'overview' ? overviewMarkup() : state.activeView === 'readme' ? readmeMarkup(project.metadata) : state.activeView === 'packages' ? packagesMarkup() : `<div class="findings-workspace">${findingNav()}${findingDetail()}</div>`;
   app.innerHTML = `${header()}<main class="repo"><section class="repo-context"><div><span class="repo-icon">${icon('book', 16)}</span><button class="breadcrumb-home" data-go-home>Home</button><span class="slash">/</span><strong>${esc(project.name)}</strong></div><span class="repo-status ${state.scanning ? 'is-running' : ''}">${state.scanning ? `${icon('spinner', 13)} Analyzing` : `${icon('check', 13)} Up to date`}</span></section><nav class="repo-tabs"><button class="tab ${state.activeView === 'overview' ? 'selected' : ''}" data-view="overview">${icon('graph')} Overview</button><button class="tab ${state.activeView === 'readme' ? 'selected' : ''}" data-view="readme">${icon('book')} README</button><button class="tab ${state.activeView === 'findings' ? 'selected' : ''}" data-view="findings">${icon('issue')} Findings <span>${issues.length}</span></button><button class="tab ${state.activeView === 'packages' ? 'selected' : ''}" data-view="packages">${icon('code')} Packages</button></nav><div class="tab-layout ${showProjectInfo ? '' : 'focused'}"><section class="tab-main">${mainContent}</section>${showProjectInfo ? projectInfoMarkup(project.metadata) : ''}</div></main>${dock()}`;
+  if (document.scrollingElement) document.scrollingElement.scrollTop = pageScrollTop;
+  const findingNavElement = document.querySelector('.finding-nav');
+  if (findingNavElement) findingNavElement.scrollTop = findingNavScrollTop;
+  const findingListElement = document.querySelector('.finding-list-items');
+  if (findingListElement) findingListElement.scrollTop = findingListScrollTop;
   document.querySelectorAll('[data-view]').forEach(button => button.onclick = () => { state.activeView = button.dataset.view; renderProject(); if (state.activeView === 'overview') void loadOverview(); if (state.activeView === 'packages') void loadPackages(); });
   document.querySelectorAll('[data-go-home]').forEach(button => button.onclick = () => { state.project = null; state.scanning = false; void renderHome(); });
   document.querySelectorAll('[data-check]').forEach(button => button.onclick = () => { state.activeCheck = button.dataset.check; state.selectedIssueId = null; state.commitInsight = null; renderProject(); });
@@ -94,14 +99,7 @@ renderProject = function renderProjectWithOverview() {
   document.querySelectorAll('.copy-prompt').forEach(button => button.onclick = async () => { const original = button.innerHTML; await navigator.clipboard.writeText(await window.api.getFixPrompt(button.dataset.id)); button.innerHTML = `${icon('check', 14)} Copied`; setTimeout(() => { if (button.isConnected) button.innerHTML = original; }, 1400); });
   highlightIssues();
   const codexTerminal = document.querySelector('.codex-activity pre');
-  requestAnimationFrame(() => {
-    if (document.scrollingElement) document.scrollingElement.scrollTop = pageScrollTop;
-    const findingNav = document.querySelector('.finding-nav');
-    if (findingNav) findingNav.scrollTop = findingNavScrollTop;
-    const findingList = document.querySelector('.finding-list-items');
-    if (findingList) findingList.scrollTop = findingListScrollTop;
-    if (codexTerminal) codexTerminal.scrollTop = codexTerminal.scrollHeight;
-  });
+  if (codexTerminal) codexTerminal.scrollTop = codexTerminal.scrollHeight;
 };
 async function highlightIssues() { for (const item of document.querySelectorAll('[data-highlight]')) { const html = await window.api.highlightIssue(item.dataset.highlight); if (html && item.isConnected) { item.innerHTML = html; item.classList.remove('loading'); } } }
 window.api.onScanProgress(event => { if (!state.project || event.projectId !== state.project.id || event.checkId === 'all') return; state.progress[event.checkId] = event; state.loadingLabel = event.status === 'running' ? `Checking ${state.project.checks.find(item => item.id === event.checkId)?.label || 'project'}...` : 'Finalizing results...'; renderProject(); });
