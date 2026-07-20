@@ -15,6 +15,9 @@ function inspect(ruleName, lines) {
     case 'todo-debt': return findTodoDebt(lines);
     case 'magic-values': return findMagicValues(lines);
     case 'long-functions': return findLongFunctions(lines);
+    case 'large-files': return findLargeFiles(lines);
+    case 'parameter-bloat': return findParameterBloat(lines);
+    case 'nested-ternaries': return findNestedTernaries(lines);
     case 'complex-logic': return findComplexLogic(lines);
     case 'logic-conditions': return findLogicConditions(lines);
     case 'error-handling': return findEmptyCatchBlocks(lines);
@@ -26,6 +29,9 @@ function inspect(ruleName, lines) {
     case 'path-traversal': return findPathTraversal(lines);
     case 'xss-sinks': return findXssSinks(lines);
     case 'tls-validation': return findDisabledTlsValidation(lines);
+    case 'unsafe-deserialization': return findUnsafeDeserialization(lines);
+    case 'regex-dos': return findRegexDos(lines);
+    case 'insecure-cookies': return findInsecureCookies(lines);
     case 'unsafe-operations': return findUnsafeOperations(lines);
     case 'deprecated-apis': return findDeprecatedApis(lines);
     case 'unsafe-external-links': return findUnsafeExternalLinks(lines);
@@ -108,6 +114,27 @@ function findLongFunctions(lines) {
   return functionsIn(lines).flatMap(fn => {
     const length = fn.end - fn.start + 1;
     return length > 75 ? [{ line: fn.start, endLine: fn.end, symbol: fn.name, reason: `Function spans ${length} lines. Split distinct responsibilities into focused helpers.` }] : [];
+  });
+}
+
+function findLargeFiles(lines) {
+  return lines.length > 900 ? [{ line: 1, endLine: lines.length, symbol: `${lines.length} lines`, reason: `Source file contains ${lines.length} lines. Split it by responsibility to make review, testing, and AI-assisted changes safer.` }] : [];
+}
+
+function findParameterBloat(lines) {
+  return lines.flatMap((line, index) => {
+    const match = codeOnly(line).match(/(?:\bfunction\s+([\w$]+)|\b([\w$]+)\s*=\s*(?:async\s*)?)\s*\(([^)]*)\)\s*(?:=>|\{)/);
+    if (!match) return [];
+    const parameters = match[3].split(',').map(value => value.trim()).filter(Boolean);
+    if (parameters.length <= 6) return [];
+    return [{ line: index + 1, symbol: match[1] || match[2], reason: `Function accepts ${parameters.length} parameters. Group related inputs into an options object or extract a focused collaborator.` }];
+  });
+}
+
+function findNestedTernaries(lines) {
+  return lines.flatMap((line, index) => {
+    const ternaries = (codeOnly(line).match(/\?(?!\.)/g) || []).length;
+    return ternaries > 1 ? [{ line: index + 1, symbol: '?:', reason: 'Nested ternary expressions are difficult to review and modify. Use a named condition or an explicit branch.' }] : [];
   });
 }
 
@@ -238,6 +265,37 @@ function findDisabledTlsValidation(lines) {
     const source = withoutLineComments(line);
     if (/\brejectUnauthorized\s*:\s*false\b|\bNODE_TLS_REJECT_UNAUTHORIZED\s*=\s*['"]?0\b|\bverify\s*=\s*False\b/.test(source)) {
       return [{ line: index + 1, symbol: 'TLS validation', reason: 'TLS certificate validation is disabled. Re-enable validation and trust only the required certificate authority.' }];
+    }
+    return [];
+  });
+}
+
+function findUnsafeDeserialization(lines) {
+  return lines.flatMap((line, index) => {
+    const source = withoutLineComments(line);
+    if (/\b(?:yaml|jsyaml)\.load\s*\(|\bunserialize\s*\(|\bpickle\.loads\s*\(/i.test(source)) {
+      return [{ line: index + 1, symbol: 'deserialization', reason: 'Potentially unsafe deserialization can construct unexpected objects. Use a safe loader or validate data against a strict schema.' }];
+    }
+    return [];
+  });
+}
+
+function findRegexDos(lines) {
+  return lines.flatMap((line, index) => {
+    const source = withoutLineComments(line);
+    if (/\b(?:new\s+)?RegExp\s*\(\s*(?:req|request)\.(?:query|params|body)\b/i.test(source)
+      || /\([^)]*[+*][^)]*\)[+*]/.test(source)) {
+      return [{ line: index + 1, symbol: 'RegExp', reason: 'Regular expression may allow catastrophic backtracking or untrusted pattern input. Bound the input and simplify nested quantifiers.' }];
+    }
+    return [];
+  });
+}
+
+function findInsecureCookies(lines) {
+  return lines.flatMap((line, index) => {
+    const source = withoutLineComments(line);
+    if (/\b(?:res|response)\.cookie\s*\(\s*['"](?:session|auth|token|jwt)[^'"]*['"]\s*,\s*[^,)]*\)/i.test(source)) {
+      return [{ line: index + 1, symbol: 'cookie', reason: 'Sensitive cookie is set without explicit security options. Set httpOnly, secure, and an appropriate sameSite policy.' }];
     }
     return [];
   });

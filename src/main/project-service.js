@@ -15,7 +15,7 @@ import { addLatestVersions, discoverPackages, managePackage } from './package-se
 import { deleteEmptyArtifact, findEmptyArtifacts } from './empty-artifact-service.js';
 
 const EXCLUDED = new Set(['node_modules', '.git', 'dist', 'build', '.next', 'coverage']);
-const SCAN_VERSION = 8;
+const SCAN_VERSION = 9;
 const LANGUAGE_BY_EXTENSION = {
   js: ['JavaScript', '#f1e05a'], mjs: ['JavaScript', '#f1e05a'], cjs: ['JavaScript', '#f1e05a'],
   ts: ['TypeScript', '#3178c6'], tsx: ['TypeScript', '#3178c6'], jsx: ['JavaScript', '#f1e05a'],
@@ -33,6 +33,9 @@ const CHECKS = [
   { id: 'magic-values', label: 'Magic Values', command: 'built-in', group: 'Clean code' },
   { id: 'empty-artifacts', label: 'Empty Files & Folders', command: 'built-in', group: 'Project cleanup' },
   { id: 'long-functions', label: 'Long Functions', command: 'built-in', group: 'Maintainability' },
+  { id: 'large-files', label: 'Large Source Files', command: 'built-in', group: 'Maintainability' },
+  { id: 'parameter-bloat', label: 'Parameter Bloat', command: 'built-in', group: 'Maintainability' },
+  { id: 'nested-ternaries', label: 'Nested Ternaries', command: 'built-in', group: 'Maintainability' },
   { id: 'complex-logic', label: 'Complex Logic', command: 'built-in', group: 'Maintainability' },
   { id: 'logic-conditions', label: 'Logic Conditions', command: 'built-in', group: 'Reliability' },
   { id: 'error-handling', label: 'Error Handling', command: 'built-in', group: 'Reliability' },
@@ -44,6 +47,9 @@ const CHECKS = [
   { id: 'path-traversal', label: 'Path Traversal', command: 'built-in', group: 'Security' },
   { id: 'xss-sinks', label: 'XSS Sinks', command: 'built-in', group: 'Security' },
   { id: 'tls-validation', label: 'TLS Validation', command: 'built-in', group: 'Security' },
+  { id: 'unsafe-deserialization', label: 'Unsafe Deserialization', command: 'built-in', group: 'Security' },
+  { id: 'regex-dos', label: 'Regex DoS', command: 'built-in', group: 'Security' },
+  { id: 'insecure-cookies', label: 'Insecure Cookies', command: 'built-in', group: 'Security' },
   { id: 'unsafe-operations', label: 'Unsafe Operations', command: 'built-in', group: 'Runtime safety' },
   { id: 'package-integrity', label: 'Package Integrity', command: 'slop-scan', group: 'Runtime safety' },
   { id: 'deprecated-apis', label: 'Deprecated APIs', command: 'built-in', group: 'Maintainability' },
@@ -97,6 +103,9 @@ export class ProjectService {
       'magic-values': () => this.runCodeQuality(project, 'magic-values'),
       'empty-artifacts': () => this.runEmptyArtifacts(project),
       'long-functions': () => this.runCodeQuality(project, 'long-functions'),
+      'large-files': () => this.runCodeQuality(project, 'large-files'),
+      'parameter-bloat': () => this.runCodeQuality(project, 'parameter-bloat'),
+      'nested-ternaries': () => this.runCodeQuality(project, 'nested-ternaries'),
       'complex-logic': () => this.runCodeQuality(project, 'complex-logic'),
       'logic-conditions': () => this.runCodeQuality(project, 'logic-conditions'),
       'error-handling': () => this.runCodeQuality(project, 'error-handling'),
@@ -108,6 +117,9 @@ export class ProjectService {
       'path-traversal': () => this.runCodeQuality(project, 'path-traversal'),
       'xss-sinks': () => this.runCodeQuality(project, 'xss-sinks'),
       'tls-validation': () => this.runCodeQuality(project, 'tls-validation'),
+      'unsafe-deserialization': () => this.runCodeQuality(project, 'unsafe-deserialization'),
+      'regex-dos': () => this.runCodeQuality(project, 'regex-dos'),
+      'insecure-cookies': () => this.runCodeQuality(project, 'insecure-cookies'),
       'unsafe-operations': () => this.runCodeQuality(project, 'unsafe-operations'),
       'package-integrity': () => this.runPackageIntegrity(project),
       'deprecated-apis': () => this.runCodeQuality(project, 'deprecated-apis'),

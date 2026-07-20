@@ -123,3 +123,27 @@ db.query('SELECT * FROM users WHERE id = ?', [req.query.id]);
   assert.equal(links.length, 0);
   assert.equal(images.length, 0);
 });
+
+test('finds additional slop and security audit patterns', async () => {
+  const source = `
+function createThing(one, two, three, four, five, six, seven) { return one; }
+const value = first ? one : second ? two : three;
+const parsed = yaml.load(content);
+const matcher = new RegExp(req.query.pattern);
+res.cookie('session', token);
+`;
+  const [parameters, ternaries, deserialize, regex, cookies, largeFiles] = await Promise.all([
+    scan('parameter-bloat', source),
+    scan('nested-ternaries', source),
+    scan('unsafe-deserialization', source),
+    scan('regex-dos', source),
+    scan('insecure-cookies', source),
+    scan('large-files', Array.from({ length: 901 }, () => 'const x = 1;').join('\n'))
+  ]);
+  assert.deepEqual(parameters.map(issue => issue.line), [2]);
+  assert.deepEqual(ternaries.map(issue => issue.line), [3]);
+  assert.deepEqual(deserialize.map(issue => issue.line), [4]);
+  assert.deepEqual(regex.map(issue => issue.line), [5]);
+  assert.deepEqual(cookies.map(issue => issue.line), [6]);
+  assert.equal(largeFiles.length, 1);
+});
