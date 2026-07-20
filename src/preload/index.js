@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld("api", {
   getOverview: (projectId) => ipcRenderer.invoke("project:get-overview", projectId),
   getTimeMachine: (projectId) => ipcRenderer.invoke("project:get-time-machine", projectId),
   getEvolutionForecast: (projectId) => ipcRenderer.invoke("project:get-evolution-forecast", projectId),
+  getAwards: (projectId) => ipcRenderer.invoke("project:get-awards", projectId),
   managePackage: (projectId, packageId, action) => ipcRenderer.invoke("project:manage-package", projectId, packageId, action),
   deleteEmptyArtifact: (projectId, issueId) => ipcRenderer.invoke("issue:delete-empty-artifact", projectId, issueId),
   fixViaCodex: (projectId, issueId) => ipcRenderer.invoke("issue:fix-via-codex", projectId, issueId),

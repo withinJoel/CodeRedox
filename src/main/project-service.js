@@ -16,6 +16,8 @@ import { deleteEmptyArtifact, findEmptyArtifacts } from './empty-artifact-servic
 
 const EXCLUDED = new Set(['node_modules', '.git', 'dist', 'build', '.next', 'coverage']);
 const SCAN_VERSION = 9;
+const AWARD_SOURCE_FILE = /\.(?:[cm]?js|jsx|tsx?|mjs|cjs|java|php|py|rb|go|rs|cs|swift|kt)$/i;
+const MAX_AWARD_FILE_BYTES = 2 * 1024 * 1024;
 const LANGUAGE_BY_EXTENSION = {
   js: ['JavaScript', '#f1e05a'], mjs: ['JavaScript', '#f1e05a'], cjs: ['JavaScript', '#f1e05a'],
   ts: ['TypeScript', '#3178c6'], tsx: ['TypeScript', '#3178c6'], jsx: ['JavaScript', '#f1e05a'],
@@ -182,6 +184,55 @@ export class ProjectService {
     const [githubContributors, packages] = await Promise.all([getGitHubContributors(project.metadata.git.remote), discoverPackages(project.path, project.files)]);
     project.overview = { contributors: githubContributors.length ? githubContributors : project.metadata.git.contributors, packages: { count: packages.length, ecosystems: [...new Set(packages.map(item => item.ecosystem))] } };
     return project.overview;
+  }
+  async getAwards(projectId) {
+    const project = this.projects.get(projectId);
+    if (!project) throw new Error('Open the project before viewing awards.');
+    const cacheKey = project.cached?.lastScan || `${project.metadata.fileCount}:${project.metadata.size}`;
+    if (project.awards?.cacheKey === cacheKey) return project.awards.data;
+    const sourceFiles = project.files.filter(file => AWARD_SOURCE_FILE.test(file.relative));
+    const scanned = await mapWithConcurrency(sourceFiles, 8, async file => {
+      try {
+        const stat = await fs.stat(file.full);
+        if (stat.size > MAX_AWARD_FILE_BYTES) return null;
+        const lines = (await fs.readFile(file.full, 'utf8')).split(/\r?\n/);
+        return { file: file.relative, language: languageFor(file.relative), lines, lineCount: lines.length, commentLines: lines.filter(line => /^\s*(?:\/\/|#|\/\*|\*|\*\/)/.test(line)).length };
+      } catch { return null; }
+    });
+    const codeFiles = scanned.filter(Boolean);
+    const structures = codeFiles.flatMap(file => awardStructures(file));
+    const longestFile = [...codeFiles].sort((left, right) => right.lineCount - left.lineCount)[0];
+    const longestFunction = structures.filter(item => item.kind === 'function').sort((left, right) => right.lines - left.lines)[0];
+    const longestClass = structures.filter(item => item.kind === 'class').sort((left, right) => right.lines - left.lines)[0];
+    const widestFunction = structures.filter(item => item.kind === 'function' && item.parameters > 0).sort((left, right) => right.parameters - left.parameters || right.lines - left.lines)[0];
+    const mostComments = [...codeFiles].filter(file => file.commentLines > 0).sort((left, right) => right.commentLines - left.commentLines)[0];
+    const issues = Object.values(project.cached?.results || {}).flat();
+    const issuesByFile = new Map();
+    issues.forEach(issue => issuesByFile.set(issue.file, (issuesByFile.get(issue.file) || 0) + 1));
+    const findingHotspot = [...issuesByFile.entries()].sort((left, right) => right[1] - left[1])[0];
+    const duplicateFiles = new Map();
+    issues.filter(issue => issue.type === 'duplicate-code').forEach(issue => duplicateFiles.set(issue.file, (duplicateFiles.get(issue.file) || 0) + 1));
+    const duplicateHotspot = [...duplicateFiles.entries()].sort((left, right) => right[1] - left[1])[0];
+    const todoHotspot = findingHotspotFor(issues, 'todo-debt');
+    const debugHotspot = findingHotspotFor(issues, 'debug-code');
+    const largestOnDisk = project.metadata.largestFiles?.[0];
+    const busiestArea = project.metadata.topLevel?.[0];
+    const awards = [
+      longestFile && { id: 'longest-file', title: 'Longest file', value: longestFile.lineCount.toLocaleString(), unit: 'lines', file: longestFile.file, line: 1, endLine: longestFile.lineCount, language: longestFile.language, description: 'The source file with the most lines.' },
+      largestOnDisk && { id: 'largest-on-disk', title: 'Largest file on disk', value: formatAwardBytes(largestOnDisk.size), unit: '', file: largestOnDisk.path, language: languageFor(largestOnDisk.path), description: 'The largest tracked project file by size.' },
+      longestFunction && { id: 'longest-function', title: 'Longest function', value: longestFunction.lines.toLocaleString(), unit: 'lines', file: longestFunction.file, line: longestFunction.start, endLine: longestFunction.end, language: longestFunction.language, symbol: longestFunction.name, description: 'The longest detected function body in the project.' },
+      longestClass && { id: 'longest-class', title: 'Longest class', value: longestClass.lines.toLocaleString(), unit: 'lines', file: longestClass.file, line: longestClass.start, endLine: longestClass.end, language: longestClass.language, symbol: longestClass.name, description: 'The longest detected class body in the project.' },
+      widestFunction && { id: 'widest-signature', title: 'Widest function signature', value: widestFunction.parameters.toLocaleString(), unit: 'parameters', file: widestFunction.file, line: widestFunction.start, endLine: widestFunction.end, language: widestFunction.language, symbol: widestFunction.name, description: 'The detected function accepting the most parameters.' },
+      mostComments && { id: 'comment-heavy-file', title: 'Most comment-heavy file', value: mostComments.commentLines.toLocaleString(), unit: 'comment lines', file: mostComments.file, language: mostComments.language, description: 'The source file with the most standalone comment lines.' },
+      busiestArea && { id: 'busiest-area', title: 'Busiest project area', value: busiestArea.count.toLocaleString(), unit: 'files', file: busiestArea.name, language: 'Project structure', description: 'The top-level project area containing the most files.' },
+      findingHotspot && { id: 'finding-hotspot', title: 'Finding hotspot', value: findingHotspot[1].toLocaleString(), unit: 'findings', file: findingHotspot[0], language: languageFor(findingHotspot[0]), description: 'The file with the most active Code Redox findings.' },
+      duplicateHotspot && { id: 'duplicate-hotspot', title: 'Duplicate magnet', value: duplicateHotspot[1].toLocaleString(), unit: 'duplicate blocks', file: duplicateHotspot[0], language: languageFor(duplicateHotspot[0]), description: 'The file involved in the most duplicate-code findings.' },
+      todoHotspot && { id: 'todo-hotspot', title: 'TODO collector', value: todoHotspot[1].toLocaleString(), unit: 'TODO notes', file: todoHotspot[0], language: languageFor(todoHotspot[0]), description: 'The file containing the most current TODO, FIXME, HACK, or XXX notes.' },
+      debugHotspot && { id: 'debug-hotspot', title: 'Debug-code holdout', value: debugHotspot[1].toLocaleString(), unit: 'debug calls', file: debugHotspot[0], language: languageFor(debugHotspot[0]), description: 'The file with the most active console or debugger findings.' }
+    ].filter(Boolean);
+    const data = { awards, scannedFiles: codeFiles.length, skippedLargeFiles: sourceFiles.length - codeFiles.length, maxFileBytes: MAX_AWARD_FILE_BYTES };
+    project.awards = { cacheKey, data };
+    return data;
   }
   async getTimeMachine(projectId) {
     const project = this.projects.get(projectId);
@@ -670,6 +721,65 @@ function recentFileChangeStats(logOutput) {
 function makeForecast({ id, kind, confidence, priority, prediction, action, evidence, file = '' }) {
   return { id, kind, confidence, priority, prediction, action, evidence, file };
 }
+function awardStructures(file) {
+  const isPython = /\.py$/i.test(file.file);
+  if (isPython) return pythonAwardStructures(file);
+  const found = [];
+  const controls = new Set(['if', 'for', 'while', 'switch', 'catch', 'with', 'else', 'try', 'do']);
+  file.lines.forEach((line, index) => {
+    const classMatch = line.match(/\b(?:class|interface)\s+([A-Za-z_$][\w$]*)[^\{]*\{/);
+    if (classMatch) {
+      const end = braceClosingLine(file.lines, index);
+      if (end !== -1) found.push({ kind: 'class', name: classMatch[1], file: file.file, language: file.language, start: index + 1, end: end + 1, lines: end - index + 1, parameters: 0 });
+      return;
+    }
+    const functionMatch = line.match(/(?:\bfunction\s+([\w$]+)|\b([\w$]+)\s*=\s*(?:async\s*)?\([^)]*\)\s*=>|\b([\w$]+)\s*\([^)]*\)\s*\{|\b(?:public|private|protected|static|async|final|synchronized|virtual|override|def)\s+[\w<>\[\],?\s]*\s+([\w$]+)\s*\([^)]*\)\s*\{)/);
+    if (!functionMatch || !line.includes('{')) return;
+    const name = functionMatch.slice(1).find(Boolean);
+    if (!name || controls.has(name)) return;
+    const end = braceClosingLine(file.lines, index);
+    if (end !== -1) found.push({ kind: 'function', name, file: file.file, language: file.language, start: index + 1, end: end + 1, lines: end - index + 1, parameters: parameterCount(line) });
+  });
+  return found;
+}
+function pythonAwardStructures(file) {
+  const found = [];
+  file.lines.forEach((line, index) => {
+    const match = line.match(/^(\s*)(?:async\s+)?(def|class)\s+([A-Za-z_]\w*)\b/);
+    if (!match) return;
+    const indent = match[1].replace(/\t/g, '    ').length;
+    let end = index;
+    for (let cursor = index + 1; cursor < file.lines.length; cursor += 1) {
+      const candidate = file.lines[cursor];
+      if (!candidate.trim() || /^\s*#/.test(candidate)) { end = cursor; continue; }
+      const candidateIndent = candidate.match(/^\s*/)[0].replace(/\t/g, '    ').length;
+      if (candidateIndent <= indent) break;
+      end = cursor;
+    }
+    found.push({ kind: match[2] === 'class' ? 'class' : 'function', name: match[3], file: file.file, language: file.language, start: index + 1, end: end + 1, lines: end - index + 1, parameters: match[2] === 'class' ? 0 : parameterCount(line) });
+  });
+  return found;
+}
+function braceClosingLine(lines, start) {
+  let depth = 0;
+  for (let index = start; index < lines.length; index += 1) {
+    const source = lines[index].replace(/(['"`])(?:\\.|(?!\1).)*\1/g, '');
+    depth += (source.match(/\{/g) || []).length;
+    depth -= (source.match(/\}/g) || []).length;
+    if (depth === 0 && index >= start) return index;
+  }
+  return -1;
+}
+function parameterCount(line) {
+  const parameters = line.match(/\(([^)]*)\)/)?.[1] || '';
+  return parameters.split(',').map(value => value.trim()).filter(value => value && !/^\*{1,2}\w+$/.test(value)).length;
+}
+function findingHotspotFor(issues, type) {
+  const counts = new Map();
+  issues.filter(issue => issue.type === type).forEach(issue => counts.set(issue.file, (counts.get(issue.file) || 0) + 1));
+  return [...counts.entries()].sort((left, right) => right[1] - left[1])[0];
+}
+function formatAwardBytes(value) { return value < 1024 ? `${value} B` : value < 1048576 ? `${(value / 1024).toFixed(1)} KB` : `${(value / 1048576).toFixed(1)} MB`; }
 async function mapWithConcurrency(items, limit, worker) {
   const results = new Array(items.length);
   let cursor = 0;
