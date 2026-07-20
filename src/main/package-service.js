@@ -4,11 +4,17 @@ import { spawn } from 'node:child_process';
 
 const TIMEOUT_MS = 7000;
 const USAGE_FILE = /\.(?:[cm]?js|jsx|tsx?|php|py|java|go|rs)$/i;
+const CAPABILITY_GROUPS = [
+  { id: 'http-client', label: 'HTTP client', packages: { JavaScript: ['axios', 'node-fetch', 'cross-fetch', 'got', 'ky', 'superagent', 'needle', 'undici', 'request'], PHP: ['guzzlehttp/guzzle', 'symfony/http-client', 'kriswallsmith/buzz'], Python: ['requests', 'httpx', 'aiohttp', 'urllib3'], Java: ['org.apache.httpcomponents:httpclient', 'com.squareup.okhttp3:okhttp', 'com.squareup.retrofit2:retrofit'] } },
+  { id: 'date-time', label: 'date and time library', packages: { JavaScript: ['moment', 'dayjs', 'date-fns', 'luxon'], PHP: ['nesbot/carbon', 'cakephp/chronos'], Python: ['pendulum', 'arrow', 'maya'], Java: ['joda-time:joda-time', 'org.threeten:threetenbp'] } },
+  { id: 'validation', label: 'validation library', packages: { JavaScript: ['zod', 'yup', 'joi', 'ajv', 'superstruct', 'valibot'], PHP: ['symfony/validator', 'respect/validation'], Python: ['pydantic', 'marshmallow', 'cerberus'], Java: ['org.hibernate.validator:hibernate-validator', 'javax.validation:validation-api'] } },
+  { id: 'logging', label: 'logging library', packages: { JavaScript: ['winston', 'pino', 'bunyan', 'log4js'], PHP: ['monolog/monolog'], Python: ['loguru', 'structlog'], Java: ['ch.qos.logback:logback-classic', 'org.apache.logging.log4j:log4j-core'] } }
+];
 
 export async function discoverPackages(root, files) {
   const names = new Set(files.map(file => file.relative));
   const packages = [];
-  const add = item => packages.push({ ...item, id: `${item.ecosystem}:${item.name}:${item.source}` });
+  const add = item => packages.push({ ...item, id: `${item.ecosystem}:${item.name}:${item.source}:${item.section}` });
 
   for (const file of files.filter(item => path.basename(item.relative) === 'package.json')) {
     try {
@@ -42,7 +48,18 @@ export async function discoverPackages(root, files) {
     try { parseCargo(await fs.readFile(file.full, 'utf8')).forEach(item => add({ ...item, ecosystem: 'Rust', source: file.relative, section: 'dependency', registry: 'crates' })); } catch { /* unreadable Cargo manifest */ }
   }
   const usageSource = await readUsageSource(files);
-  return uniquePackages(packages).map(item => ({ ...item, usage: packageIsUsed(item, usageSource) ? 'used' : 'unused' })).sort((left, right) => left.ecosystem.localeCompare(right.ecosystem) || left.name.localeCompare(right.name));
+  const discovered = uniquePackages(packages);
+  const declarations = new Map();
+  discovered.forEach(item => { const key = `${item.ecosystem}:${item.name.toLowerCase()}`; const matches = declarations.get(key) || []; matches.push(item); declarations.set(key, matches); });
+  const capabilityOverlaps = findCapabilityOverlaps(discovered);
+  return discovered.map(item => {
+    const matches = declarations.get(`${item.ecosystem}:${item.name.toLowerCase()}`) || [];
+    const duplicateLocations = matches.map(match => ({ source: match.source, section: match.section, version: match.version }));
+    const duplicate = matches.length > 1;
+    const versions = new Set(matches.map(match => normaliseComparableVersion(match.version)));
+    const overlaps = capabilityOverlaps.get(item.id) || [];
+    return { ...item, usage: packageIsUsed(item, usageSource) ? 'used' : 'unused', duplicate, duplicateKind: duplicate ? (versions.size > 1 ? 'version-conflict' : 'duplicate') : null, duplicateLocations, overlap: overlaps.length > 0, overlapGroups: overlaps };
+  }).sort((left, right) => left.ecosystem.localeCompare(right.ecosystem) || left.name.localeCompare(right.name));
 }
 
 export async function addLatestVersions(packages) {
@@ -136,7 +153,24 @@ function parseRequirements(source) { return source.split(/\r?\n/).flatMap(line =
 function parseGoMod(source) { return source.split(/\r?\n/).flatMap(line => { const trimmed = line.replace(/\/\/.*$/, '').trim(); if (/^(?:module|go)\s/.test(trimmed) || trimmed === 'require (' || trimmed === ')') return []; const match = trimmed.replace(/^require\s+/, '').match(/^([\w.~/-]+)\s+(v[^\s]+)/); return match ? [{ name: match[1], version: match[2] }] : []; }); }
 function parseCargo(source) { let dependencies = false; return source.split(/\r?\n/).flatMap(line => { if (/^\s*\[.*dependencies.*]\s*$/i.test(line)) { dependencies = true; return []; } if (/^\s*\[/.test(line)) dependencies = false; const match = dependencies && line.match(/^\s*([\w-]+)\s*=\s*['"]([^'"]+)['"]/); return match ? [{ name: match[1], version: match[2] }] : []; }); }
 function xmlValue(source, tag) { return source.match(new RegExp(`<${tag}>\\s*([^<]+?)\\s*<\\/${tag}>`))?.[1]?.trim(); }
-function uniquePackages(packages) { const seen = new Set(); return packages.filter(item => { const key = `${item.ecosystem}:${item.name}:${item.version}:${item.source}`; if (seen.has(key)) return false; seen.add(key); return true; }); }
+function uniquePackages(packages) { const seen = new Set(); return packages.filter(item => { const key = `${item.ecosystem}:${item.name}:${item.version}:${item.source}:${item.section}`; if (seen.has(key)) return false; seen.add(key); return true; }); }
+function normaliseComparableVersion(version) { return String(version || '').replace(/^[~^v=<> ]+/, '').trim().toLowerCase(); }
+function findCapabilityOverlaps(packages) {
+  const overlaps = new Map();
+  CAPABILITY_GROUPS.forEach(group => {
+    Object.entries(group.packages).forEach(([ecosystem, names]) => {
+      const matches = packages.filter(item => item.ecosystem === ecosystem && names.includes(item.name.toLowerCase()));
+      const distinctNames = [...new Set(matches.map(item => item.name.toLowerCase()))];
+      if (distinctNames.length < 2) return;
+      matches.forEach(item => {
+        const entries = overlaps.get(item.id) || [];
+        entries.push({ id: group.id, label: group.label, packages: distinctNames });
+        overlaps.set(item.id, entries);
+      });
+    });
+  });
+  return overlaps;
+}
 
 async function latestRelease(item) {
   if (item.registry === 'npm') { const data = await requestJson(`https://registry.npmjs.org/${encodeURIComponent(item.name)}`); const version = data['dist-tags']?.latest; return version ? { version, updatedAt: data.time?.[version] || null } : null; }
