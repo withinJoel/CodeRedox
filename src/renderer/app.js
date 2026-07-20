@@ -145,4 +145,16 @@ async function highlightIssues() { for (const item of document.querySelectorAll(
 window.api.onScanProgress(event => { if (!state.project || event.projectId !== state.project.id || event.checkId === 'all') return; state.progress[event.checkId] = event; state.loadingLabel = event.status === 'running' ? `Checking ${state.project.checks.find(item => item.id === event.checkId)?.label || 'project'}...` : 'Finalizing results...'; renderProject(); });
 window.api.onScanResults(event => { if (!state.project || event.projectId !== state.project.id) return; if (event.checkId) { if (event.reset) state.results[event.checkId] = []; else if (event.append) state.results[event.checkId] = [...(state.results[event.checkId] || []), ...event.issues]; else state.results[event.checkId] = event.issues; } if (event.results) { state.results = event.results; state.scanning = false; state.timeMachine = null; state.evolutionForecast = null; state.showRestorationPreview = false; } if (typeof event.fixedCount === 'number') state.fixedCount = event.fixedCount; renderProject(); if (event.results && state.activeView === 'time-machine') void loadTimeMachine(); if (event.results && state.activeView === 'evolution-forecast') void loadEvolutionForecast(); });
 window.api.onCodexProgress(event => { if (!state.project || event.projectId !== state.project.id || !state.codexFixId) return; const text = String(event.text || '').replace(/\u001b\[[0-?]*[ -\/]*[@-~]/g, ''); if (text) state.codexLog = [...state.codexLog, text.endsWith('\n') ? text : `${text}\n`].join('').slice(-12000).split(/(?<=\n)/); if (event.status === 'started') state.loadingLabel = 'Codex is working in the project…'; if (event.status === 'completed') state.loadingLabel = 'Codex finished; re-scanning…'; renderProject(); });
+document.addEventListener('keydown', event => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'o' && !state.scanning) {
+    event.preventDefault();
+    void openPicker();
+    return;
+  }
+  if (event.key === 'Escape' && state.project && state.selectedIssueId) {
+    state.selectedIssueId = null;
+    state.commitInsight = null;
+    renderProject();
+  }
+});
 (async () => (await window.api.getAppState()).introSeen ? renderHome() : renderIntro())();
