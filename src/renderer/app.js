@@ -66,6 +66,8 @@ overviewMarkup = function expandedOverviewMarkup() {
 function projectAge(date) { const days = Math.max(0, Math.floor((Date.now() - date.valueOf()) / 86400000)); if (days === 0) return 'Today'; if (days < 60) return `${days} days`; const months = Math.floor(days / 30.44); return months >= 12 ? `${Math.floor(months / 12)}y ${months % 12}mo` : `${months} months`; }
 function timeSince(date) { const days = Math.max(0, Math.floor((Date.now() - date.valueOf()) / 86400000)); return days === 0 ? 'Today' : days === 1 ? 'Yesterday' : `${days} days ago`; }
 renderProject = function renderProjectWithOverview() {
+  const pageScrollTop = document.scrollingElement?.scrollTop || 0;
+  const findingListScrollTop = document.querySelector('.finding-list-items')?.scrollTop || 0;
   const project = state.project;
   const issues = allIssues();
   const showProjectInfo = state.activeView === 'readme';
@@ -86,7 +88,12 @@ renderProject = function renderProjectWithOverview() {
   document.querySelectorAll('.copy-prompt').forEach(button => button.onclick = async () => { const original = button.innerHTML; await navigator.clipboard.writeText(await window.api.getFixPrompt(button.dataset.id)); button.innerHTML = `${icon('check', 14)} Copied`; setTimeout(() => { if (button.isConnected) button.innerHTML = original; }, 1400); });
   highlightIssues();
   const codexTerminal = document.querySelector('.codex-activity pre');
-  if (codexTerminal) requestAnimationFrame(() => { codexTerminal.scrollTop = codexTerminal.scrollHeight; });
+  requestAnimationFrame(() => {
+    if (document.scrollingElement) document.scrollingElement.scrollTop = pageScrollTop;
+    const findingList = document.querySelector('.finding-list-items');
+    if (findingList) findingList.scrollTop = findingListScrollTop;
+    if (codexTerminal) codexTerminal.scrollTop = codexTerminal.scrollHeight;
+  });
 };
 async function highlightIssues() { for (const item of document.querySelectorAll('[data-highlight]')) { const html = await window.api.highlightIssue(item.dataset.highlight); if (html && item.isConnected) { item.innerHTML = html; item.classList.remove('loading'); } } }
 window.api.onScanProgress(event => { if (!state.project || event.projectId !== state.project.id || event.checkId === 'all') return; state.progress[event.checkId] = event; state.loadingLabel = event.status === 'running' ? `Checking ${state.project.checks.find(item => item.id === event.checkId)?.label || 'project'}...` : 'Finalizing results...'; renderProject(); });
