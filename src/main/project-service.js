@@ -381,9 +381,9 @@ async function readReadme(root) {
 async function getGitInfo(root) {
   try {
     const git = simpleGit(root);
-    const [remotes, log, branch, firstCommit, shortlog, recentCommits] = await Promise.all([git.getRemotes(true), git.log({ maxCount: 1 }), git.branchLocal(), git.raw(['log', '--reverse', '--format=%aI', '-1']), git.raw(['shortlog', '-sne', '--all']), git.raw(['rev-list', '--count', '--since=30 days ago', 'HEAD'])]);
+    const [remotes, log, branch, firstCommit, shortlog, totalCommits, recentCommits] = await Promise.all([git.getRemotes(true), git.log({ maxCount: 1 }), git.branchLocal(), git.raw(['log', '--reverse', '--format=%aI', '-1']), git.raw(['shortlog', '-sne', '--all']), git.raw(['rev-list', '--count', 'HEAD']), git.raw(['rev-list', '--count', '--since=30 days ago', 'HEAD'])]);
     const remote = remotes[0]?.refs?.fetch || '';
-    return { provider: providerFor(remote), remote, commits: log.total || 0, recentCommits: Number(recentCommits.trim()) || 0, branch: branch.current || 'HEAD', firstCommit: firstCommit.trim() || null, contributors: parseShortlog(shortlog), latest: log.latest ? { hash: log.latest.hash?.slice(0, 7), message: log.latest.message, date: log.latest.date } : null };
+    return { provider: providerFor(remote), remote, commits: Number(totalCommits.trim()) || 0, recentCommits: Number(recentCommits.trim()) || 0, branch: branch.current || 'HEAD', firstCommit: firstCommit.trim() || null, contributors: parseShortlog(shortlog), latest: log.latest ? { hash: log.latest.hash?.slice(0, 7), message: log.latest.message, date: log.latest.date } : null };
   } catch { return { provider: 'Local', remote: '', commits: 0, recentCommits: 0, branch: 'No branch', firstCommit: null, contributors: [], latest: null }; }
 }
 
