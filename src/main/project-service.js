@@ -59,7 +59,7 @@ export class ProjectService {
     const project = { id, path: root, name: path.basename(root), files, metadata, cached, disabledChecks };
     this.projects.set(id, project);
     this.addRecent(project);
-    if (cached?.results) this.indexIssues(cached.results);
+    if (cached?.results) this.indexIssues(cached.results, project.id);
     return { id, name: project.name, path: root, metadata, checks: CHECKS, disabledChecks, cachedResults: cached?.results ?? null, lastScan: cached?.lastScan ?? null };
   }
 
@@ -118,7 +118,7 @@ export class ProjectService {
       project.cached = { scanVersion: SCAN_VERSION, checkConfigSignature, fingerprint, lastScan: new Date().toISOString(), results, fixedCount };
       await this.writeCache(projectId, project.cached);
     }
-    this.indexIssues(results);
+    this.indexIssues(results, project.id);
     this.send('scan:results', { projectId, results, complete: true, fixedCount, incomplete: scanHadErrors });
     return { cached: false, results, fixedCount, incomplete: scanHadErrors };
   }
@@ -160,6 +160,35 @@ export class ProjectService {
     this.issues.delete(issueId);
     return { issueId };
   }
+  async fixViaCodex(projectId, issueId) {
+    const project = this.projects.get(projectId);
+    const issue = this.issues.get(issueId);
+    if (!project || !issue || issue.projectId !== projectId) throw new Error('That finding is no longer available.');
+    const prompt = `Fix this single finding in the current project.\n\n${buildPrompt(issue)}\n\nWork only on files needed for this finding. Preserve project conventions, do not change unrelated code, and verify the fix before finishing.`;
+    await runCodexCli(project.path, prompt, event => this.send('codex:progress', { projectId, ...event }));
+    project.cached = null;
+    return { message: 'Codex completed the requested fix.' };
+  }
+  async fixCheckViaCodex(projectId, checkId, issueIds = []) {
+    const project = this.projects.get(projectId);
+    const check = CHECKS.find(item => item.id === checkId);
+    if (!project || !check) throw new Error('That finding section is no longer available.');
+    if (project.disabledChecks.includes(checkId)) throw new Error(`${check.label} is disabled for this project.`);
+    const requestedIds = new Set(issueIds);
+    const issues = [...this.issues.values()].filter(issue => issue.projectId === projectId && issue.type === checkId && requestedIds.has(issue.id));
+    if (!issues.length) throw new Error(`There are no current ${check.label.toLowerCase()} findings to fix.`);
+    const taskFile = `.coderedox-codex-task-${crypto.randomUUID()}.md`;
+    const taskPath = path.join(project.path, taskFile);
+    const task = `# CodeRedox bulk fix task\n\nFix every ${check.label} finding listed below. Work only on files required by these findings, preserve project conventions, and verify the fixes before finishing.\n\n${issues.map((issue, index) => `## Finding ${index + 1}\n${buildPrompt(issue)}`).join('\n\n')}`;
+    await fs.writeFile(taskPath, task, { encoding: 'utf8', flag: 'wx' });
+    try {
+      await runCodexCli(project.path, `Read ${taskFile} in the current project and complete every requested fix. Do not change unrelated code.`, event => this.send('codex:progress', { projectId, ...event }));
+    } finally {
+      await fs.unlink(taskPath).catch(() => {});
+    }
+    project.cached = null;
+    return { message: `Codex completed ${issues.length} ${check.label.toLowerCase()} fixes.` };
+  }
 
   progress(projectId, checkId, status, count, error) { this.send('scan:progress', { projectId, checkId, status, count, error }); }
   setCheckActive(projectId, checkId, active) {
@@ -179,7 +208,7 @@ export class ProjectService {
     try { const { codeToHtml } = await import('shiki'); return await codeToHtml(issue.snippet, { lang: shikiLanguage(issue.language), theme: 'github-light' }); }
     catch { return `<pre><code>${escapeHtml(issue.snippet)}</code></pre>`; }
   }
-  indexIssues(results) { Object.values(results).flat().forEach(issue => this.issues.set(issue.id, issue)); }
+  indexIssues(results, projectId) { Object.values(results).flat().forEach(issue => { issue.projectId = projectId; this.issues.set(issue.id, issue); }); }
   addRecent(project) {
     const current = this.store.get('recentProjects', []).filter(item => item.path !== project.path);
     this.store.set('recentProjects', [{ id: project.id, name: project.name, path: project.path, lastOpened: new Date().toISOString() }, ...current].slice(0, 12));
@@ -339,6 +368,60 @@ function languageFor(file) { return LANGUAGE_BY_EXTENSION[path.extname(file).sli
 function shikiLanguage(language) { return ({ JavaScript: 'javascript', TypeScript: 'typescript', Python: 'python', JSON: 'json', HTML: 'html', CSS: 'css', Markdown: 'markdown', Shell: 'shell' })[language] || 'text'; }
 function localBin(name) { const extension = process.platform === 'win32' ? '.cmd' : ''; const target = path.join(app.getAppPath(), 'node_modules', '.bin', `${name}${extension}`); return fssync.existsSync(target) ? target : null; }
 function run(command, args, options) { return new Promise((resolve, reject) => { const child = spawn(command, args, { ...options, shell: false, windowsHide: true }); let stdout = '', stderr = ''; child.stdout?.on('data', data => { stdout += data; }); child.stderr?.on('data', data => { stderr += data; }); child.on('error', error => reject(Object.assign(error, { stdout, stderr }))); child.on('close', code => code === 0 ? resolve({ stdout, stderr }) : reject(Object.assign(new Error(stderr || `${path.basename(command)} exited ${code}`), { stdout, stderr }))); }); }
+async function runCodexCli(cwd, prompt, onProgress, retriedAfterUpdate = false) {
+  const candidates = codexCliCandidates();
+  const errors = [];
+  for (const command of candidates) try {
+    await runCodexCommand(command, ['exec', '--sandbox', 'workspace-write', '--skip-git-repo-check', prompt], cwd, onProgress, 'Codex finished successfully.');
+    return;
+  } catch (error) {
+    const message = error.message || String(error);
+    if (!retriedAfterUpdate && /requires a newer version of Codex/i.test(message)) {
+      onProgress?.({ status: 'output', text: 'Codex needs an update for this model. Updating the local CLI, then retrying…' });
+      try {
+        await runCodexCommand(command, ['update'], cwd, onProgress, 'Codex CLI updated. Retrying the fix…');
+      } catch (updateError) {
+        if (!/Could not detect the Codex installation method/i.test(updateError.message || '')) throw updateError;
+        onProgress?.({ status: 'output', text: 'The desktop-managed CLI cannot update itself. Downloading the latest official Codex CLI for this fix…' });
+        return runLatestCodexCli(cwd, prompt, onProgress);
+      }
+      return runCodexCli(cwd, prompt, onProgress, true);
+    }
+    if (!/ENOENT|not recognized as an internal or external command/i.test(message)) throw new Error(`Codex CLI failed. ${message}`);
+    errors.push(message);
+  }
+  throw new Error(`Unable to run the Codex CLI. Install the standalone Codex CLI or set CODEX_CLI_PATH. ${errors.join(' | ')}`.trim());
+}
+async function runLatestCodexCli(cwd, prompt, onProgress) {
+  const npxScript = npxCliScript();
+  if (!npxScript) throw new Error('Codex needs an update, but npm is unavailable to download the latest CLI. Update the Codex desktop app and try again.');
+  const args = [npxScript, '--yes', '@openai/codex@latest', 'exec', '--sandbox', 'workspace-write', '--skip-git-repo-check', prompt];
+  await runCodexCommand(process.execPath, args, cwd, onProgress, 'Codex finished successfully using the latest CLI.', { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
+}
+function runCodexCommand(command, args, cwd, onProgress, completedText, options = {}) {
+  return new Promise((resolve, reject) => {
+    const shell = process.platform === 'win32' && /\.cmd$/i.test(command);
+    const child = spawn(command, args, { ...options, cwd, shell, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    let stderr = '';
+    onProgress?.({ status: 'started', text: `> ${path.basename(command)} ${args.slice(0, 4).join(' ')}` });
+    child.stdout?.on('data', data => onProgress?.({ status: 'output', text: data.toString().slice(-4000) }));
+    child.stderr?.on('data', data => { const text = data.toString(); stderr += text; onProgress?.({ status: 'output', text: text.slice(-4000) }); });
+    child.on('error', error => reject(error));
+    child.on('close', code => code === 0 ? (onProgress?.({ status: 'completed', text: completedText }), resolve()) : reject(new Error(stderr || `Codex exited with code ${code}.`)));
+  });
+}
+function npxCliScript() {
+  const nodeDirectories = [...new Set([path.dirname(process.execPath), ...(process.env.Path || process.env.PATH || '').split(path.delimiter).filter(Boolean)])];
+  return nodeDirectories.map(directory => path.join(directory, 'node_modules', 'npm', 'bin', 'npx-cli.js')).find(candidate => fssync.existsSync(candidate));
+}
+function codexCliCandidates() {
+  const pathEntries = (process.env.Path || process.env.PATH || '').split(path.delimiter).filter(Boolean);
+  const localAppData = process.env.LOCALAPPDATA || path.join(app.getPath('home'), 'AppData', 'Local');
+  const knownLocations = process.platform === 'win32'
+    ? [path.join(localAppData, 'OpenAI', 'Codex', 'bin', 'codex.exe'), ...pathEntries.flatMap(entry => [path.join(entry, 'codex.exe'), path.join(entry, 'codex.cmd')])]
+    : pathEntries.map(entry => path.join(entry, 'codex'));
+  return [...new Set([process.env.CODEX_CLI_PATH, ...knownLocations.filter(candidate => fssync.existsSync(candidate)), process.platform === 'win32' ? 'codex.cmd' : 'codex', 'codex'].filter(Boolean))];
+}
 function runNodeScript(script, args) { return run(process.execPath, [path.join(path.dirname(fileURLToPath(import.meta.url)), 'workers', script), ...args], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } }); }
 function runNodeScriptStreaming(script, args, onLine) {
   return new Promise((resolve, reject) => {

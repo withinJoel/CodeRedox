@@ -564,6 +564,19 @@ button:focus-visible {
 .repo-context strong:last-of-type {
   color: var(--accent);
 }
+.breadcrumb-home {
+  padding: 0;
+  border: 0;
+  color: var(--fg);
+  background: transparent;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.breadcrumb-home:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
 .slash {
   color: var(--muted);
 }
@@ -1043,6 +1056,29 @@ button:focus-visible {
 .loading-dock small {
   color: var(--muted);
   font-size: 11px;
+}
+.codex-activity {
+  grid-column: 1 / -1;
+  min-width: 0;
+  padding-top: 2px;
+}
+.codex-activity strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #6639ba;
+  font-size: 11px;
+}
+.codex-activity pre {
+  max-height: 170px;
+  margin: 0;
+  padding: 9px;
+  overflow: auto;
+  border-radius: 4px;
+  color: #c9d1d9;
+  background: #24292f;
+  font: 10px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 .loading-track {
   grid-column: 1 / -1;
