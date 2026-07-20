@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld("api", {
   setCheckActive: (projectId, checkId, active) => ipcRenderer.invoke("project:set-check-active", projectId, checkId, active),
   getPackages: (projectId, force = false) => ipcRenderer.invoke("project:get-packages", projectId, force),
   managePackage: (projectId, packageId, action) => ipcRenderer.invoke("project:manage-package", projectId, packageId, action),
+  deleteEmptyArtifact: (projectId, issueId) => ipcRenderer.invoke("issue:delete-empty-artifact", projectId, issueId),
   getFixPrompt: (issueId) =>
     ipcRenderer.invoke("issue:get-fix-prompt", issueId),
   highlightIssue: (issueId) => ipcRenderer.invoke("issue:highlight", issueId),

@@ -12,9 +12,10 @@ import sanitizeHtml from 'sanitize-html';
 import simpleGit from 'simple-git';
 import { buildPrompt } from './prompts.js';
 import { addLatestVersions, discoverPackages, managePackage } from './package-service.js';
+import { deleteEmptyArtifact, findEmptyArtifacts } from './empty-artifact-service.js';
 
 const EXCLUDED = new Set(['node_modules', '.git', 'dist', 'build', '.next', 'coverage']);
-const SCAN_VERSION = 5;
+const SCAN_VERSION = 6;
 const LANGUAGE_BY_EXTENSION = {
   js: ['JavaScript', '#f1e05a'], mjs: ['JavaScript', '#f1e05a'], cjs: ['JavaScript', '#f1e05a'],
   ts: ['TypeScript', '#3178c6'], tsx: ['TypeScript', '#3178c6'], jsx: ['JavaScript', '#f1e05a'],
@@ -30,6 +31,7 @@ const CHECKS = [
   { id: 'dead-code', label: 'Dead Code', command: 'knip', group: 'Clean code' },
   { id: 'duplicate-code', label: 'Duplicate Code', command: 'jscpd', group: 'Clean code' },
   { id: 'magic-values', label: 'Magic Values', command: 'built-in', group: 'Clean code' },
+  { id: 'empty-artifacts', label: 'Empty Files & Folders', command: 'built-in', group: 'Project cleanup' },
   { id: 'long-functions', label: 'Long Functions', command: 'built-in', group: 'Maintainability' },
   { id: 'complex-logic', label: 'Complex Logic', command: 'built-in', group: 'Maintainability' },
   { id: 'logic-conditions', label: 'Logic Conditions', command: 'built-in', group: 'Reliability' },
@@ -83,6 +85,7 @@ export class ProjectService {
       'debug-code': () => this.runCodeQuality(project, 'debug-code'),
       'todo-debt': () => this.runCodeQuality(project, 'todo-debt'),
       'magic-values': () => this.runCodeQuality(project, 'magic-values'),
+      'empty-artifacts': () => this.runEmptyArtifacts(project),
       'long-functions': () => this.runCodeQuality(project, 'long-functions'),
       'complex-logic': () => this.runCodeQuality(project, 'complex-logic'),
       'logic-conditions': () => this.runCodeQuality(project, 'logic-conditions'),
@@ -140,6 +143,15 @@ export class ProjectService {
     project.packages = null;
     return result;
   }
+  async deleteEmptyArtifact(projectId, issueId) {
+    const project = this.projects.get(projectId);
+    const issue = this.issues.get(issueId);
+    if (!project || !issue || issue.type !== 'empty-artifacts') throw new Error('That empty item is no longer available.');
+    await deleteEmptyArtifact(project.path, issue.file, issue.kind);
+    project.cached = null;
+    this.issues.delete(issueId);
+    return { issueId };
+  }
 
   progress(projectId, checkId, status, count, error) { this.send('scan:progress', { projectId, checkId, status, count, error }); }
   setCheckActive(projectId, checkId, active) {
@@ -171,7 +183,7 @@ export class ProjectService {
 
   issue(project, checkId, data) {
     const relativeFile = data.file ? data.file.replaceAll('\\', '/') : 'package.json';
-    return { id: sha(`${project.id}:${checkId}:${relativeFile}:${data.line || 1}:${data.reason}`), type: checkId, file: relativeFile, line: data.line || 1, endLine: data.endLine || data.line || 1, reason: data.reason, symbol: data.symbol || '', snippet: data.snippet || '', language: languageFor(relativeFile) };
+    return { id: sha(`${project.id}:${checkId}:${relativeFile}:${data.line || 1}:${data.reason}`), type: checkId, file: relativeFile, line: data.line || 1, endLine: data.endLine || data.line || 1, reason: data.reason, symbol: data.symbol || '', snippet: data.snippet || '', kind: data.kind || '', language: languageFor(relativeFile) };
   }
   async runWhitespace(project) {
     const issues = [];
@@ -197,6 +209,15 @@ export class ProjectService {
       this.send('scan:results', { projectId: project.id, checkId, issues: [issue], append: true });
     });
     return issues;
+  }
+  async runEmptyArtifacts(project) {
+    const artifacts = await findEmptyArtifacts(project.path, project.files);
+    return artifacts.map(artifact => this.issue(project, 'empty-artifacts', {
+      ...artifact,
+      line: 1,
+      symbol: artifact.kind === 'folder' ? 'Empty folder' : 'Empty file',
+      reason: artifact.kind === 'folder' ? 'Empty folder can be removed safely.' : 'Empty file can be removed safely.'
+    }));
   }
   async runPackageIntegrity(project) {
     const executable = localBin('slop-scan');

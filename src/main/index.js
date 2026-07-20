@@ -53,6 +53,7 @@ ipcMain.handle('scan:start', (_event, projectId) => projects.startScan(projectId
 ipcMain.handle('project:set-check-active', (_event, projectId, checkId, active) => projects.setCheckActive(projectId, checkId, active));
 ipcMain.handle('project:get-packages', (_event, projectId, force) => projects.getPackages(projectId, force));
 ipcMain.handle('project:manage-package', (_event, projectId, packageId, action) => projects.managePackage(projectId, packageId, action));
+ipcMain.handle('issue:delete-empty-artifact', (_event, projectId, issueId) => projects.deleteEmptyArtifact(projectId, issueId));
 ipcMain.handle('issue:get-fix-prompt', (_event, issueId) => projects.getFixPrompt(issueId));
 ipcMain.handle('issue:highlight', (_event, issueId) => projects.highlight(issueId));
 ipcMain.handle('window:minimize', () => windowRef?.minimize());

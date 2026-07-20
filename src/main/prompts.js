@@ -11,6 +11,8 @@ const templates = {
     "Review the maintenance marker in `{file}:{line}`. {reason} Either complete the work, replace it with a precise tracked-work reference, or remove it if it is no longer useful. Keep the change focused.",
   "magic-values":
     "Improve the readability of `{file}:{line}`. {reason} Introduce a well-named constant at the narrowest useful scope, unless the literal is truly self-explanatory. Preserve behavior and avoid unrelated refactors.",
+  "empty-artifacts":
+    "Review the empty item at `{file}`. {reason} Delete it only if it is not intentionally used as a placeholder or required by tooling.",
   "long-functions":
     "Refactor `{symbol}` in `{file}:{line}`. {reason} Extract cohesive sections into small helpers with intention-revealing names, keeping the public behavior, error handling, and tests unchanged.",
   "complex-logic":
