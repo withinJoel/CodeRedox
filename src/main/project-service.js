@@ -183,6 +183,69 @@ export class ProjectService {
     project.overview = { contributors: githubContributors.length ? githubContributors : project.metadata.git.contributors, packages: { count: packages.length, ecosystems: [...new Set(packages.map(item => item.ecosystem))] } };
     return project.overview;
   }
+  async getTimeMachine(projectId) {
+    const project = this.projects.get(projectId);
+    if (!project) throw new Error('Open the project before viewing its history.');
+    const cacheKey = project.cached?.lastScan || 'unscanned';
+    if (project.timeMachine?.cacheKey === cacheKey) return project.timeMachine.data;
+    const git = simpleGit(project.path);
+    let commits;
+    try { commits = (await git.log({ maxCount: 36 })).all; }
+    catch { return { available: false, reason: 'Git history is unavailable for this project.' }; }
+    if (!commits.length) return { available: false, reason: 'This project has no commits to replay yet.' };
+    const issues = Object.values(project.cached?.results || {}).flat();
+    const packages = await discoverPackages(project.path, project.files).catch(() => []);
+    const unusedPackages = packages.filter(item => item.usage === 'unused').length;
+    const trackedIssues = [...issues].sort((left, right) => timeMachinePriority(right) - timeMachinePriority(left)).slice(0, 240);
+    const lineCommits = await mapWithConcurrency(trackedIssues, 6, async issue => {
+      try {
+        const blame = await git.raw(['blame', '--line-porcelain', '-L', `${issue.line},${issue.line}`, '--', issue.file]);
+        const hash = blame.match(/^([0-9a-f]{40})\s/m)?.[1];
+        return hash ? { issue, hash } : null;
+      } catch { return null; }
+    });
+    const linkedByCommit = new Map();
+    lineCommits.filter(Boolean).forEach(({ issue, hash }) => {
+      const items = linkedByCommit.get(hash) || [];
+      items.push(issue);
+      linkedByCommit.set(hash, items);
+    });
+    const timeline = commits.map((commit, index) => {
+      const linked = linkedByCommit.get(commit.hash) || [];
+      return { hash: commit.hash, shortHash: commit.hash.slice(0, 7), date: commit.date, subject: commit.message || 'Commit', number: Math.max(1, (project.metadata.git.commits || commits.length) - index), findings: linked.slice(0, 3).map(issue => ({ id: issue.id, type: issue.type, reason: issue.reason, file: issue.file, line: issue.line })), findingCount: linked.length };
+    }).filter(commit => commit.findingCount).slice(0, 14).reverse();
+    const count = type => issues.filter(issue => issue.type === type).length;
+    const runtimeRisk = ['deprecated-apis', 'unsafe-operations', 'logic-conditions', 'error-handling'].reduce((total, type) => total + count(type), 0);
+    const pulse = [
+      { label: 'Dead code', count: count('dead-code') },
+      { label: 'Duplicate logic', count: count('duplicate-code') },
+      { label: 'API & runtime risk', count: runtimeRisk },
+      { label: 'Dependency bloat', count: count('package-integrity') + unusedPackages }
+    ].map(item => ({ ...item, level: Math.min(100, Math.round(Math.log2(item.count + 1) * 20)) }));
+    const duplicates = count('duplicate-code');
+    const deadCode = count('dead-code');
+    const emptyArtifacts = count('empty-artifacts');
+    const estimatedLines = deadCode * 12 + duplicates * 10 + emptyArtifacts + unusedPackages * 2;
+    const data = {
+      available: true,
+      totalCommits: project.metadata.git.commits || commits.length,
+      sampledFindings: trackedIssues.length,
+      findings: issues.length,
+      pulse,
+      timeline,
+      restoration: {
+        deleteArtifacts: emptyArtifacts,
+        removePackages: unusedPackages,
+        mergeDuplicates: duplicates,
+        updateImports: deadCode,
+        estimatedLines,
+        complexityReduction: Math.min(55, duplicates * 3 + deadCode),
+        maintainabilityGain: Math.min(35, Math.ceil((duplicates + deadCode + unusedPackages) / 2))
+      }
+    };
+    project.timeMachine = { cacheKey, data };
+    return data;
+  }
   async deleteEmptyArtifact(projectId, issueId) {
     const project = this.projects.get(projectId);
     const issue = this.issues.get(issueId);
@@ -501,6 +564,20 @@ async function runProjectWorker(script, project, args, onLine) {
   } finally {
     await fs.rm(directory, { recursive: true, force: true });
   }
+}
+function timeMachinePriority(issue) {
+  return ({ secrets: 8, 'sql-injection': 8, 'path-traversal': 8, 'xss-sinks': 8, 'unsafe-deserialization': 8, 'duplicate-code': 5, 'dead-code': 4, 'package-integrity': 4, 'logic-conditions': 4, 'error-handling': 4 }[issue.type] || 1);
+}
+async function mapWithConcurrency(items, limit, worker) {
+  const results = new Array(items.length);
+  let cursor = 0;
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor++;
+      results[index] = await worker(items[index]);
+    }
+  }));
+  return results;
 }
 function safeJson(value, fallback) { try { return JSON.parse(value); } catch { const start = value.indexOf('{'); const array = value.indexOf('['); const index = start < 0 ? array : array < 0 ? start : Math.min(start, array); try { return JSON.parse(value.slice(index)); } catch { return fallback; } } }
 async function snippetAt(root, relative, line) { try { const source = await fs.readFile(path.join(root, relative), 'utf8'); return source.split(/\r?\n/).slice(Math.max(0, line - 3), line + 2).join('\n'); } catch { return ''; } }

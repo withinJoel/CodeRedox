@@ -90,6 +90,7 @@ ipcMain.handle('scan:start', (_event, projectId) => projects.startScan(projectId
 ipcMain.handle('project:set-check-active', (_event, projectId, checkId, active) => projects.setCheckActive(projectId, checkId, active));
 ipcMain.handle('project:get-packages', (_event, projectId, force) => projects.getPackages(projectId, force));
 ipcMain.handle('project:get-overview', (_event, projectId) => projects.getOverview(projectId));
+ipcMain.handle('project:get-time-machine', (_event, projectId) => projects.getTimeMachine(projectId));
 ipcMain.handle('project:manage-package', (_event, projectId, packageId, action) => projects.managePackage(projectId, packageId, action));
 ipcMain.handle('issue:delete-empty-artifact', (_event, projectId, issueId) => projects.deleteEmptyArtifact(projectId, issueId));
 ipcMain.handle('issue:fix-via-codex', (_event, projectId, issueId) => projects.fixViaCodex(projectId, issueId));
