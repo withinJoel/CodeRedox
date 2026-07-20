@@ -46,8 +46,10 @@ function saveWindowState(window) {
 
 function createWindow() {
   const savedState = getSavedWindowState();
-  windowRef = new BrowserWindow({
+  const wasMaximized = store.get('windowState')?.isMaximized;
+  const window = new BrowserWindow({
     ...savedState,
+    show: false,
     minWidth: 1050,
     minHeight: 700,
     frame: true,
@@ -60,9 +62,11 @@ function createWindow() {
       sandbox: false
     }
   });
-  windowRef.loadFile(path.join(here, '../renderer/index.html'));
-  windowRef.once('close', () => saveWindowState(windowRef));
-  if (store.get('windowState')?.isMaximized) windowRef.maximize();
+  windowRef = window;
+  window.once('close', () => saveWindowState(window));
+  if (wasMaximized) window.maximize();
+  window.once('ready-to-show', () => window.show());
+  window.loadFile(path.join(here, '../renderer/index.html'));
 }
 
 app.whenReady().then(() => {
