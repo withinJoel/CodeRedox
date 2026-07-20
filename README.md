@@ -106,7 +106,7 @@ This project was built during the hackathon with Codex using GPT-5.6 as the core
 
 The human builder directed the feature scope, decided which automation should be opt-in, reviewed code and test behavior, and chose the final design and release path.
 
-> **Codex feedback session:** Add the `/feedback` session ID for the primary build session here before submitting to Devpost.
+> **Codex feedback session:** 019f7ae4-892a-7aa1-8915-cb685a145493
 
 ## Architecture
 
@@ -143,7 +143,7 @@ Logo/           Application assets
 
 ## License and contribution
 
-Please add an open-source license file before making the repository public for hackathon judging. Contributions are welcome through issues and pull requests.
+MIT License.
 
 ---
 
