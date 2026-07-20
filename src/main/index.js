@@ -53,6 +53,7 @@ function createWindow() {
     minWidth: 1050,
     minHeight: 700,
     frame: true,
+    icon: path.join(here, '../../Logo/logo.ico'),
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : undefined,
     backgroundColor: '#f5f5f7',
     webPreferences: {

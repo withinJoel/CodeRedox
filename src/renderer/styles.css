@@ -1230,6 +1230,11 @@ body { color: var(--fg); letter-spacing: -0.01em; }
 .loading-track { border-radius: 999px; background: #e8eaff; }
 .loading-track i { background: linear-gradient(90deg, #818cf8, #4f46e5, #818cf8); }
 
+.app-logo { display: block; object-fit: contain; }
+.brand-logo { width: 30px; height: 30px; border-radius: 9px; filter: drop-shadow(0 2px 5px rgb(15 23 42 / .28)); }
+.intro-lockup { overflow: hidden; padding: 0; background: transparent; box-shadow: 0 14px 28px rgb(79 70 229 / .24); }
+.intro-logo { width: 100%; height: 100%; }
+
 @keyframes slide-up { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes float-in { from { opacity: 0; transform: translateY(12px) scale(.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @keyframes tab-indicator { from { opacity: 0; transform: scaleX(.35); } to { opacity: 1; transform: scaleX(1); } }

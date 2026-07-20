@@ -35,6 +35,7 @@
     "productName": "Code Redox",
     "files": [
       "src/**/*",
+      "Logo/**/*",
       "package.json"
     ],
     "mac": {
@@ -42,6 +43,7 @@
     },
     "win": {
       "target": "nsis",
+      "icon": "Logo/logo.ico",
       "executableName": "Code Redox"
     }
   }
