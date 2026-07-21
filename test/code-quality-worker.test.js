@@ -147,3 +147,35 @@ res.cookie('session', token);
   assert.deepEqual(cookies.map(issue => issue.line), [6]);
   assert.equal(largeFiles.length, 1);
 });
+
+test('finds additional focused reliability, security, and cleanup metrics', async () => {
+  const source = `
+import fetch from 'node-fetch';
+import again from 'node-fetch';
+if (enabled) {}
+try { work(); } catch (Exception error) { log(error); }
+const endpoint = 'http://service.example.com/v1';
+while (true) { processNext(); }
+`;
+  const [imports, branches, exceptions, http, loops] = await Promise.all([
+    scan('duplicate-imports', source),
+    scan('empty-branches', source),
+    scan('broad-exception-handling', source),
+    scan('insecure-http', source),
+    scan('unbounded-loops', source)
+  ]);
+  assert.deepEqual(imports.map(issue => issue.line), [3]);
+  assert.deepEqual(branches.map(issue => issue.line), [4]);
+  assert.deepEqual(exceptions.map(issue => issue.line), [5]);
+  assert.deepEqual(http.map(issue => issue.line), [6]);
+  assert.deepEqual(loops.map(issue => issue.line), [7]);
+});
+
+test('does not flag local HTTP endpoints or loops with an exit path', async () => {
+  const [http, loops] = await Promise.all([
+    scan('insecure-http', "const endpoint = 'http://localhost:3000/health';"),
+    scan('unbounded-loops', 'while (true) { if (done) break; work(); }')
+  ]);
+  assert.equal(http.length, 0);
+  assert.equal(loops.length, 0);
+});

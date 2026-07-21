@@ -13,6 +13,7 @@ function inspect(ruleName, lines) {
   switch (ruleName) {
     case 'debug-code': return findDebugCode(lines);
     case 'todo-debt': return findTodoDebt(lines);
+    case 'duplicate-imports': return findDuplicateImports(lines);
     case 'magic-values': return findMagicValues(lines);
     case 'long-functions': return findLongFunctions(lines);
     case 'large-files': return findLargeFiles(lines);
@@ -21,6 +22,8 @@ function inspect(ruleName, lines) {
     case 'complex-logic': return findComplexLogic(lines);
     case 'logic-conditions': return findLogicConditions(lines);
     case 'error-handling': return findEmptyCatchBlocks(lines);
+    case 'empty-branches': return findEmptyBranches(lines);
+    case 'broad-exception-handling': return findBroadExceptionHandling(lines);
     case 'secrets': return findSecrets(lines);
     case 'weak-cryptography': return findWeakCryptography(lines);
     case 'insecure-randomness': return findInsecureRandomness(lines);
@@ -32,7 +35,9 @@ function inspect(ruleName, lines) {
     case 'unsafe-deserialization': return findUnsafeDeserialization(lines);
     case 'regex-dos': return findRegexDos(lines);
     case 'insecure-cookies': return findInsecureCookies(lines);
+    case 'insecure-http': return findInsecureHttp(lines);
     case 'unsafe-operations': return findUnsafeOperations(lines);
+    case 'unbounded-loops': return findUnboundedLoops(lines);
     case 'deprecated-apis': return findDeprecatedApis(lines);
     case 'unsafe-external-links': return findUnsafeExternalLinks(lines);
     case 'image-alt-text': return findMissingImageAltText(lines);
@@ -93,6 +98,20 @@ function findTodoDebt(lines) {
     const marker = line.match(/(?:\/\/|\/\*|\*)\s*(TODO|FIXME|HACK|XXX)\b\s*:?\s*(.*)/i);
     return marker ? [{ line: index + 1, symbol: marker[1].toUpperCase(), reason: `${marker[1].toUpperCase()} note should be resolved, scheduled, or linked to tracked work.` }] : [];
   });
+}
+
+function findDuplicateImports(lines) {
+  const findings = [];
+  const imported = new Map();
+  lines.forEach((line, index) => {
+    const source = withoutLineComments(line);
+    const module = source.match(/\bimport(?:[\s\S]*?\sfrom)?\s*['"]([^'"]+)['"]|\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)/)?.slice(1).find(Boolean);
+    if (!module) return;
+    const previous = imported.get(module);
+    if (previous) findings.push({ line: index + 1, symbol: module, reason: `Module ${module} is imported again after line ${previous}. Combine imports to keep dependencies clear.` });
+    else imported.set(module, index + 1);
+  });
+  return findings;
 }
 
 function findMagicValues(lines) {
@@ -175,6 +194,51 @@ function findEmptyCatchBlocks(lines) {
     if (!body) issues.push({ line: index + 1, endLine: end + 1, reason: 'Empty catch block swallows errors silently. Handle, log, or deliberately document the recovery.' });
   }
   return issues;
+}
+
+function findEmptyBranches(lines) {
+  const findings = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const source = codeOnly(lines[index]);
+    if (!/\b(?:if|else\s+if|else)\b[^{}]*\{/.test(source)) continue;
+    const opening = source.indexOf('{');
+    const end = closingLine(lines, index, opening);
+    if (end === -1) continue;
+    const body = (end === index ? lines[index].slice(opening + 1, lines[index].lastIndexOf('}')) : lines.slice(index + 1, end).join('\n')).replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '').trim();
+    if (!body) findings.push({ line: index + 1, endLine: end + 1, reason: 'Conditional branch is empty. Remove the branch or make the intentional no-op explicit.' });
+  }
+  return findings;
+}
+
+function findBroadExceptionHandling(lines) {
+  return lines.flatMap((line, index) => {
+    const source = codeOnly(line);
+    const match = source.match(/\bcatch\s*\(\s*(?:Exception|Throwable|Error|BaseException)\b[^)]*\)|^\s*except\s*(?:Exception|BaseException)\s*:/);
+    return match ? [{ line: index + 1, symbol: match[0].trim(), reason: 'Broad exception handling can hide unrelated failures. Catch the narrowest expected error type and preserve unexpected failures.' }] : [];
+  });
+}
+
+function findInsecureHttp(lines) {
+  return lines.flatMap((line, index) => {
+    const source = /^\s*\/\//.test(line) ? '' : line;
+    const urls = [...source.matchAll(/['"](http:\/\/[^'"\s/]+[^'"]*)['"]/gi)].map(match => match[1]);
+    const unsafe = urls.find(url => !/^http:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(?::|\/|$)/i.test(url));
+    return unsafe ? [{ line: index + 1, symbol: 'http://', reason: 'Non-local endpoint uses unencrypted HTTP. Use HTTPS unless the transport is deliberately isolated and protected.' }] : [];
+  });
+}
+
+function findUnboundedLoops(lines) {
+  const findings = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const source = codeOnly(lines[index]);
+    if (!/\bwhile\s*\(\s*true\s*\)|\bfor\s*\(\s*;\s*;\s*\)|^\s*loop\s*\{/.test(source)) continue;
+    const opening = source.indexOf('{');
+    const end = opening === -1 ? -1 : closingLine(lines, index, opening);
+    const body = end === -1 ? lines.slice(index, Math.min(index + 12, lines.length)).join('\n') : lines.slice(index, end + 1).join('\n');
+    if (/\bbreak\b|\breturn\b|\bthrow\b/.test(body)) continue;
+    findings.push({ line: index + 1, endLine: end === -1 ? index + 1 : end + 1, reason: 'Loop has no detected exit path. Add a bounded condition, cancellation path, or explicit break to prevent runaway work.' });
+  }
+  return findings;
 }
 
 function findUnsafeOperations(lines) {
