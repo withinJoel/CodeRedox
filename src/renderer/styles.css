@@ -1236,12 +1236,69 @@ body { color: var(--fg); letter-spacing: -0.01em; }
 .intro-lockup { overflow: hidden; padding: 0; background: transparent; box-shadow: 0 8px 24px rgb(31 35 40 / .22); }
 .intro-logo { width: 100%; height: 100%; }
 
+/* Codebase Rescue Mode */
+.rescue { display: grid; gap: 20px; }
+.rescue-hero { min-height: 260px; padding: 36px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 24px; align-items: center; overflow: hidden; border: 1px solid #20294d; border-radius: 20px; color: #f8fbff; background: radial-gradient(circle at 17% 18%, #7558e833, transparent 25%), radial-gradient(circle at 86% 10%, #3cb8c344, transparent 27%), linear-gradient(135deg, #151b38, #202c57 55%, #17394a); box-shadow: 0 16px 42px rgb(22 30 68 / .2); }
+.rescue-hero h1 { margin: 4px 0 10px; color: #fff; font-size: clamp(29px, 3vw, 42px); letter-spacing: -.03em; }
+.rescue-hero p:not(.kicker) { max-width: 690px; margin: 0; color: #d9e5ff; line-height: 1.65; }
+.rescue-hero .kicker { color: #9ce9dd; }
+.rescue-orb { width: 66px; height: 66px; display: grid; place-items: center; border: 1px solid #a6f5ec55; border-radius: 19px; color: #a6f5ec; background: #8df0df16; box-shadow: inset 0 0 30px #8df0df12, 0 8px 28px #00000026; }
+.rescue-hero-actions { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 10px; }
+.btn-rescue { border-color: #9ce9dd; color: #102d35; background: #a6f5ec; box-shadow: 0 5px 16px #00000022; }
+.btn-rescue:hover { border-color: #d4fffa; color: #102d35; background: #d4fffa; }
+.btn-rescue-quiet { border-color: #ffffff38; color: #eef7ff; background: #ffffff12; }
+.btn-rescue-quiet:hover { border-color: #ffffff66; color: #fff; background: #ffffff22; }
+.rescue-score { min-width: 145px; padding: 18px; display: grid; gap: 3px; border: 1px solid #ffffff26; border-radius: 15px; background: #0a123c40; text-align: right; }
+.rescue-score span, .rescue-score small { color: #b8cbea; font-size: 10px; font-weight: 700; letter-spacing: .09em; }
+.rescue-score strong { color: #a6f5ec; font-size: 46px; line-height: 1; }
+.rescue-score small { font-weight: 500; letter-spacing: 0; }
+.rescue-journey { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.rescue-journey article { min-height: 100px; padding: 15px; display: flex; gap: 10px; border: 1px solid var(--border); border-radius: 13px; background: #fff; }
+.rescue-journey article > b { width: 25px; height: 25px; flex: 0 0 25px; display: grid; place-items: center; border-radius: 50%; color: #657087; background: #edf0f7; font-size: 11px; }
+.rescue-journey article.complete { border-color: #a2e5ca; background: #f2fff8; }
+.rescue-journey article.complete > b { color: #116329; background: #b7f2d3; }
+.rescue-journey strong, .rescue-journey small { display: block; }
+.rescue-journey strong { margin: 2px 0 5px; font-size: 13px; }
+.rescue-journey small { color: var(--muted); font-size: 11px; line-height: 1.35; }
+.rescue-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.rescue-card { min-height: 218px; padding: 22px; display: flex; flex-direction: column; align-items: flex-start; border: 1px solid var(--border); border-radius: 16px; background: #fff; box-shadow: 0 2px 7px rgb(24 35 74 / .05); }
+.rescue-card h2 { margin: 5px 0 9px; color: #20294d; font-size: 22px; letter-spacing: -.02em; }
+.rescue-card h2 small { color: var(--muted); font-size: 13px; font-weight: 600; }
+.rescue-card > p:not(.kicker) { margin: 0 0 15px; color: #58637a; font-size: 13px; line-height: 1.55; }
+.rescue-card > div:last-child { margin-top: auto; display: flex; flex-wrap: wrap; gap: 8px; }
+.rescue-card .kicker { margin: 0; color: #68769b; font-size: 10px; }
+.ship-card { color: #fff; background: linear-gradient(135deg, #1b3452, #14515a); }
+.ship-card h2 { color: #fff; }
+.ship-card > p:not(.kicker), .ship-card .kicker { color: #d9f2f1; }
+.ship-card.blocked { background: linear-gradient(135deg, #512a43, #8a3d44); }
+.ship-card.review { background: linear-gradient(135deg, #5a3c1b, #8b652b); }
+.ship-card.ready { background: linear-gradient(135deg, #16483b, #187451); }
+.ship-facts { margin-top: auto; display: flex; gap: 16px; color: #e6fffc; font-size: 11px; }
+.ship-facts b { display: block; color: #fff; font-size: 22px; }
+.debt-track { width: 100%; height: 8px; margin: auto 0 9px; overflow: hidden; border-radius: 999px; background: #eceff5; }
+.debt-track i { height: 100%; display: block; border-radius: inherit; background: linear-gradient(90deg, #f4bf5e, #e96472); }
+.debt-card > small, .handoff-card > small { color: #69748a; font-size: 11px; line-height: 1.4; }
+.change-card code { margin: 0 0 12px; color: #0969da; font-size: 11px; }
+.replay-card { background: linear-gradient(155deg, #fbfcff, #eff5ff); }
+.onboarding-card { background: linear-gradient(155deg, #fffcf6, #fff4df); }
+.handoff-card { background: linear-gradient(155deg, #f6fbfa, #e7f7ef); }
+.rescue-proof { padding: 25px; display: flex; justify-content: space-between; gap: 24px; align-items: center; border: 1px solid #b9d9ec; border-radius: 16px; background: linear-gradient(100deg, #edf8ff, #f9fdff); }
+.rescue-proof h2 { margin: 3px 0 6px; color: #20294d; font-size: 23px; }
+.rescue-proof p:not(.kicker) { max-width: 390px; margin: 0; color: #58637a; font-size: 13px; line-height: 1.5; }
+.rescue-proof > div:last-child { display: flex; gap: 11px; align-items: center; }
+.rescue-proof span { min-width: 67px; display: grid; text-align: center; }
+.rescue-proof span b { color: #1b365d; font-size: 27px; }
+.rescue-proof span small { color: var(--muted); font-size: 10px; line-height: 1.25; }
+.rescue-proof i { color: #57a681; font-size: 22px; font-style: normal; }
+
 @keyframes slide-up { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes float-in { from { opacity: 0; transform: translateY(12px) scale(.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @keyframes tab-indicator { from { opacity: 0; transform: scaleX(.35); } to { opacity: 1; transform: scaleX(1); } }
 
 @media (max-width: 1100px) {
   .overview-grid, .overview-details, .overview-primary, .overview-insights { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rescue-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rescue-journey { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .tab-layout { width: min(100% - 40px, 960px); }
 }
 
