@@ -428,7 +428,8 @@ export class ProjectService {
     const taskFile = `.coderedox-codex-task-${crypto.randomUUID()}.md`;
     const taskPath = path.join(project.path, taskFile);
     const flightPlan = useFlightPlan ? await this.getRepairFlightPlan(projectId, issueId) : null;
-    const task = `# CodeRedox single-finding fix task\n\nFix only the finding below. Work only on files required by it, preserve project conventions, do not change unrelated code, and verify the fix before finishing.${flightPlan ? `\n\n## Approved Repair Flight Plan\n${flightPlan.codexTask}` : ''}\n\n## Finding\n${buildPrompt(issue)}`;
+    const baseline = useFlightPlan ? await captureRepairBaseline(project.path) : null;
+    const task = `# CodeRedox single-finding fix task\n\nFix only the finding below. Work only on files required by it, preserve project conventions, do not change unrelated code, do not commit or reset repository history, and verify the fix before finishing.${flightPlan ? `\n\n## Approved Repair Flight Plan\n${flightPlan.codexTask}` : ''}\n\n## Finding\n${buildPrompt(issue)}`;
     await fs.writeFile(taskPath, task, { encoding: 'utf8', flag: 'wx' });
     try {
       await runCodexCli(project.path, `Read ${taskFile} in the current project and complete the requested fix. Do not change unrelated code.`, event => this.send('codex:progress', { projectId, ...event }));
@@ -436,7 +437,7 @@ export class ProjectService {
       await fs.unlink(taskPath).catch(() => {});
     }
     project.cached = null;
-    return { message: 'Codex completed the requested fix.' };
+    return { message: 'Codex completed the requested fix.', receipt: flightPlan ? await buildRepairReceipt(project.path, flightPlan, baseline) : null };
   }
   async fixCheckViaCodex(projectId, checkId, issueIds = []) {
     const project = this.projects.get(projectId);
@@ -704,6 +705,40 @@ async function getRepairVerificationCommands(root) {
     const scripts = manifest.scripts || {};
     return ['test', 'lint', 'typecheck', 'check'].filter(name => scripts[name]).slice(0, 2).map(name => `npm run ${name}`);
   } catch { return []; }
+}
+
+async function captureRepairBaseline(root) {
+  try {
+    const status = await simpleGit(root).status();
+    return {
+      available: true,
+      clean: status.isClean(),
+      files: new Map(status.files.map(file => [file.path.replaceAll('\\', '/'), `${file.index}:${file.working_dir}`]))
+    };
+  } catch { return { available: false, clean: false, files: new Map() }; }
+}
+
+async function buildRepairReceipt(root, plan, baseline) {
+  if (!baseline?.available) return { available: false, reason: 'Git working-tree evidence is unavailable for this project.' };
+  try {
+    const status = await simpleGit(root).status();
+    const current = new Map(status.files.map(file => [file.path.replaceAll('\\', '/'), `${file.index}:${file.working_dir}`]));
+    const allPaths = new Set([...baseline.files.keys(), ...current.keys()]);
+    const changedFiles = [...allPaths].filter(file => baseline.files.get(file) !== current.get(file)).sort();
+    const allowed = new Set(plan.scope.allow.map(file => file.replaceAll('\\', '/')));
+    const outOfScope = changedFiles.filter(file => !allowed.has(file));
+    return {
+      available: true,
+      isolated: baseline.clean,
+      changedFiles,
+      outOfScope,
+      scopeStatus: baseline.clean ? (outOfScope.length ? 'outside-scope' : 'within-scope') : 'baseline-dirty',
+      generatedAt: new Date().toISOString(),
+      note: baseline.clean
+        ? 'The repository was clean before the repair, so this receipt isolates files changed by the approved task.'
+        : 'The repository already had uncommitted work, so scope evidence is advisory. Commit or stash first for an isolated receipt.'
+    };
+  } catch { return { available: false, reason: 'Code Redox could not read Git working-tree evidence after the repair.' }; }
 }
 
 async function listFiles(root) {
