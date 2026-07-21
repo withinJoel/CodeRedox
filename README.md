@@ -137,6 +137,32 @@ This tells the full product story in one pass: find risk, understand its history
 
 The hackathon build work used GPT-5.6 through Codex. At runtime, Code Redox delegates repository chat and repair requests to the model configured in the user’s local Codex CLI; the app does not silently select or override that model. This keeps model access and authorization with the developer while preserving the focused workflow built with Codex and GPT-5.6.
 
+## Why Code Redox is built for this challenge
+
+### Technological implementation
+
+Code Redox is a working Windows Electron application, not a prompt wrapper. It combines local static-analysis workers with Knip, JSCPD, Prettier, package-registry inspection, Git log/blame/diff analysis, a context-isolated Electron IPC boundary, cached scans, and a Node test suite. The Codex integration is a real repository workflow: scoped task generation, live CLI output, explicit sandbox selection, cleanup of temporary instructions, re-scanning, and—when a Flight Plan is used—post-repair scope comparison against the Git working tree.
+
+### Design: one coherent developer journey
+
+The product deliberately follows a complete loop rather than presenting disconnected dashboards:
+
+```text
+Scan → Understand → Prioritize → Preflight → Approve → Repair → Re-scan → Review → Hand off
+```
+
+Overview, Rescue, Decision Lens, Time Machine, Forecast, and Fix Ripple help a developer understand and prioritize. Repair Flight Plan constrains the action before Codex writes. Repair Receipt and Redox Gate bring the resulting Git diff, scan evidence, and human verification back into the release decision. This makes the experience usable from first audit through review, not merely a technical demonstration.
+
+### Potential impact: a specific problem for a specific user
+
+Code Redox is for individual developers and small engineering teams maintaining fast-moving repositories. Their problem is not a lack of tools that emit warnings; it is deciding which debt to address, understanding its history and change risk, and using AI without losing reviewability. Code Redox answers those questions with local evidence, explicit action boundaries, and a team-ready handoff brief. It can reduce the friction of routine cleanup while keeping code review and testing in the developer’s hands.
+
+### Quality and differentiation of the idea
+
+Most linters answer, “What is wrong here?” Most AI coding tools answer, “What should I change?” Code Redox connects the two with a third question: **“What is the safest, most valuable next change—and how can I prove it?”**
+
+Its differentiator is the evidence-to-repair-to-proof loop: a local scan informs a Flight Plan; the user approves a constrained Codex task; the app re-scans, examines the Git change set, and presents a Repair Receipt and pre-merge Gate. Forecasts and Fix Ripple make the planning layer proactive, while Time Machine supplies the historical context usually missing from code-quality tools. The goal is not to replace developer judgment with AI, but to make that judgment faster and better informed.
+
 > **Codex feedback session:** 019f7ae4-892a-7aa1-8915-cb685a145493
 
 ## Architecture
