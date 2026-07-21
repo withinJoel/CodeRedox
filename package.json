@@ -1,6 +1,7 @@
 {
   "name": "CodeRedox",
-  "version": "1.0.0",
+  "version": "1.0.1",
+  "author": "Joel Jolly",
   "description": "A desktop utility for finding AI coding slop.",
   "type": "module",
   "main": "src/main/index.js",
