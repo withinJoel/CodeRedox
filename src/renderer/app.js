@@ -517,4 +517,33 @@ renderProject = function renderProjectWithAwardCeremony() {
     state.activeView = 'findings'; state.activeCheck = issue.type; state.selectedIssueId = issue.id; state.commitInsight = null; renderProject();
   });
 };
+async function runPrettierFormat(issueId) {
+  if (!state.project || state.prettierFormatId) return;
+  const issue = allIssues().find(candidate => candidate.id === issueId);
+  if (!issue) return;
+  state.prettierFormatId = issueId;
+  state.scanning = true;
+  state.loadingLabel = 'Formatting with the repository’s Prettier rules…';
+  renderProject();
+  try {
+    await window.api.formatWithPrettier(state.project.id, issueId);
+    state.loadingLabel = 'Re-scanning the formatted file…';
+    await window.api.runScan(state.project.id);
+    state.selectedIssueId = null;
+  } catch (error) { window.alert(error.message || 'Prettier could not format this file.'); }
+  finally { state.prettierFormatId = null; state.scanning = false; renderProject(); }
+}
+const findingDetailBeforePrettier = findingDetail;
+findingDetail = function findingDetailWithPrettier() {
+  const content = findingDetailBeforePrettier();
+  const issue = filteredIssues().find(candidate => candidate.id === state.selectedIssueId);
+  if (issue?.type !== 'formatting-drift') return content;
+  const label = state.prettierFormatId === issue.id ? 'Formatting…' : 'Format with Prettier';
+  return content.replace('<div class="finding-detail-actions">', `<div class="finding-detail-actions"><button class="btn btn-prettier" data-format-prettier="${issue.id}" ${state.prettierFormatId ? 'disabled' : ''}>${icon('check', 14)} ${label}</button>`);
+};
+const renderProjectBeforePrettier = renderProject;
+renderProject = function renderProjectWithPrettier() {
+  renderProjectBeforePrettier();
+  document.querySelectorAll('[data-format-prettier]').forEach(button => button.onclick = () => void runPrettierFormat(button.dataset.formatPrettier));
+};
 (async () => (await window.api.getAppState()).introSeen ? renderHome() : renderIntro())();

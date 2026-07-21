@@ -16,7 +16,8 @@ Open any repository, run an audit, inspect the exact files and lines involved, t
 
 ## What it does
 
-- Runs **30 configurable checks** across foundations, maintainability, reliability, security, runtime safety, and accessibility.
+- Runs configurable checks across foundations, maintainability, reliability, security, runtime safety, and accessibility.
+- Flags **Formatting Drift** with Prettier when machine-edited JavaScript, TypeScript, JSON, CSS, HTML, Vue, or YAML files no longer match the project’s readable formatting; users can apply the repository-aware formatter directly and re-scan.
 - Detects whitespace issues, debug code, TODO debt, dead code, duplicate code, large/long/complex functions, magic values, empty artifacts, and more.
 - Surfaces static signals for common security and reliability risks, including hard-coded secrets, unsafe dynamic operations, weak cryptography, insecure randomness, injection sinks, path traversal, unsafe deserialization, regex DoS, cookie issues, and TLS validation.
 - Builds a project overview with language mix, repository health signals, contributors, Git activity, a quality score, and finding breakdowns.

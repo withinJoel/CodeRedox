@@ -5,6 +5,8 @@ const templates = {
     "Refactor the duplicate code in `{file}:{line}`. {reason} Extract the smallest safe shared helper, retain existing behavior and tests, and avoid unrelated formatting changes. Relevant code:\n```\n{snippet}\n```",
   whitespace:
     "Fix the formatting issue in `{file}:{line}`: {reason} Make only the whitespace change requested and preserve all code semantics.",
+  "formatting-drift":
+    "Format `{file}` with the repository's Prettier configuration. {reason} Do not make semantic changes, do not reformat unrelated files, and preserve the file's behavior exactly.",
   "debug-code":
     "Remove or replace the development-only code in `{file}:{line}`. {reason} Preserve intentional diagnostics by routing them through the project's approved logger; otherwise delete the statement without changing behavior.",
   "todo-debt":

@@ -100,6 +100,7 @@ ipcMain.handle('project:get-evolution-forecast', (_event, projectId) => projects
 ipcMain.handle('project:get-awards', (_event, projectId) => projects.getAwards(projectId));
 ipcMain.handle('project:manage-package', (_event, projectId, packageId, action) => projects.managePackage(projectId, packageId, action));
 ipcMain.handle('issue:delete-empty-artifact', (_event, projectId, issueId) => projects.deleteEmptyArtifact(projectId, issueId));
+ipcMain.handle('issue:format-with-prettier', (_event, projectId, issueId) => projects.formatWithPrettier(projectId, issueId));
 ipcMain.handle('issue:fix-via-codex', (_event, projectId, issueId, useFlightPlan) => projects.fixViaCodex(projectId, issueId, useFlightPlan));
 ipcMain.handle('issue:fix-check-via-codex', (_event, projectId, checkId, issueIds) => projects.fixCheckViaCodex(projectId, checkId, issueIds));
 ipcMain.handle('project:chat-with-codex', (_event, projectId, request) => projects.chatWithCodex(projectId, request));

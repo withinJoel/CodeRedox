@@ -1539,3 +1539,7 @@ body { color: var(--fg); letter-spacing: -0.01em; }
 .ceremony-loading { min-height: 310px; }
 @media (max-width: 960px) { .award-spotlight { grid-template-columns: auto minmax(0, 1fr); } .spotlight-value, .spotlight-evidence { grid-column: 2; padding-left: 0; border: 0; text-align: left; } .ceremony-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 640px) { .ceremony-hero { grid-template-columns: 1fr; } .ceremony-trophy { display: none; } .award-spotlight { grid-template-columns: auto minmax(0, 1fr); } .spotlight-value, .spotlight-evidence { grid-column: 1 / -1; } .ceremony-grid { grid-template-columns: 1fr; } .award-gallery-head { display: grid; } }
+
+/* Prettier-powered formatting repair */
+.btn-prettier { border-color: #4d72d8; color: #fff; background: linear-gradient(135deg, #526cd1, #8156c5); box-shadow: 0 4px 12px rgb(82 108 209 / .2); }
+.btn-prettier:hover { border-color: #3e56b0; background: linear-gradient(135deg, #3e56b0, #6943a8); }

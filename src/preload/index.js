@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld("api", {
   getAwards: (projectId) => ipcRenderer.invoke("project:get-awards", projectId),
   managePackage: (projectId, packageId, action) => ipcRenderer.invoke("project:manage-package", projectId, packageId, action),
   deleteEmptyArtifact: (projectId, issueId) => ipcRenderer.invoke("issue:delete-empty-artifact", projectId, issueId),
+  formatWithPrettier: (projectId, issueId) => ipcRenderer.invoke("issue:format-with-prettier", projectId, issueId),
   fixViaCodex: (projectId, issueId, useFlightPlan = false) => ipcRenderer.invoke("issue:fix-via-codex", projectId, issueId, useFlightPlan),
   fixCheckViaCodex: (projectId, checkId, issueIds) => ipcRenderer.invoke("issue:fix-check-via-codex", projectId, checkId, issueIds),
   chatWithCodex: (projectId, request) => ipcRenderer.invoke("project:chat-with-codex", projectId, request),

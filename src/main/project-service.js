@@ -15,9 +15,10 @@ import { addLatestVersions, discoverPackages, managePackage } from './package-se
 import { deleteEmptyArtifact, findEmptyArtifacts } from './empty-artifact-service.js';
 
 const EXCLUDED = new Set(['node_modules', '.git', 'dist', 'build', '.next', 'coverage']);
-const SCAN_VERSION = 12;
+const SCAN_VERSION = 13;
 const AWARD_SOURCE_FILE = /\.(?:[cm]?js|jsx|tsx?|mjs|cjs|java|php|py|rb|go|rs|cs|swift|kt)$/i;
 const MAX_AWARD_FILE_BYTES = 2 * 1024 * 1024;
+const PRETTIER_EXTENSIONS = new Set(['js', 'mjs', 'cjs', 'jsx', 'ts', 'tsx', 'json', 'css', 'scss', 'less', 'html', 'vue', 'yaml', 'yml']);
 const LANGUAGE_BY_EXTENSION = {
   js: ['JavaScript', '#f1e05a'], mjs: ['JavaScript', '#f1e05a'], cjs: ['JavaScript', '#f1e05a'],
   ts: ['TypeScript', '#3178c6'], tsx: ['TypeScript', '#3178c6'], jsx: ['JavaScript', '#f1e05a'],
@@ -28,6 +29,7 @@ const LANGUAGE_BY_EXTENSION = {
 };
 const CHECKS = [
   { id: 'whitespace', label: 'Whitespace', command: 'built-in', group: 'Foundations' },
+  { id: 'formatting-drift', label: 'Formatting Drift', command: 'prettier', group: 'Foundations' },
   { id: 'debug-code', label: 'Debug Code', command: 'built-in', group: 'Foundations' },
   { id: 'todo-debt', label: 'TODO Debt', command: 'built-in', group: 'Foundations' },
   { id: 'dead-code', label: 'Dead Code', command: 'knip', group: 'Clean code' },
@@ -117,6 +119,7 @@ export class ProjectService {
       'duplicate-imports': () => this.runCodeQuality(project, 'duplicate-imports'),
       'empty-functions': () => this.runCodeQuality(project, 'empty-functions'),
       whitespace: () => this.runWhitespace(project),
+      'formatting-drift': () => this.runFormattingDrift(project),
       'debug-code': () => this.runCodeQuality(project, 'debug-code'),
       'todo-debt': () => this.runCodeQuality(project, 'todo-debt'),
       'magic-values': () => this.runCodeQuality(project, 'magic-values'),
@@ -587,6 +590,34 @@ export class ProjectService {
     });
     return issues;
   }
+  async runFormattingDrift(project) {
+    const candidates = project.files.filter(file => PRETTIER_EXTENSIONS.has(file.extension));
+    const findings = await mapWithConcurrency(candidates, 6, async file => {
+      const formatted = await prettierFormatFile(file);
+      if (!formatted?.changed) return null;
+      const line = firstChangedLine(formatted.source, formatted.output);
+      return this.issue(project, 'formatting-drift', {
+        file: file.relative,
+        line,
+        reason: 'Prettier would reformat this file. Restoring consistent structure makes follow-up AI edits easier to review safely.',
+        symbol: 'Prettier format drift',
+        snippet: await snippetAt(project.path, file.relative, line)
+      });
+    });
+    return findings.filter(Boolean);
+  }
+  async formatWithPrettier(projectId, issueId) {
+    const project = this.projects.get(projectId);
+    const issue = this.issues.get(issueId);
+    if (!project || !issue || issue.projectId !== projectId || issue.type !== 'formatting-drift') throw new Error('That formatting finding is no longer available.');
+    const file = project.files.find(candidate => candidate.relative === issue.file);
+    if (!file) throw new Error('The formatting target is no longer available.');
+    const formatted = await prettierFormatFile(file);
+    if (!formatted) throw new Error('Prettier could not parse this file with the available configuration.');
+    if (formatted.changed) await fs.writeFile(file.full, formatted.output, 'utf8');
+    project.cached = null;
+    return { changed: formatted.changed, file: issue.file, message: formatted.changed ? `Formatted ${issue.file} with Prettier.` : `${issue.file} already matches Prettier.` };
+  }
   async runCodeQuality(project, checkId) {
     const issues = [];
     await runProjectWorker('code-quality-worker.js', project, [checkId], async line => {
@@ -739,6 +770,26 @@ async function buildRepairReceipt(root, plan, baseline) {
         : 'The repository already had uncommitted work, so scope evidence is advisory. Commit or stash first for an isolated receipt.'
     };
   } catch { return { available: false, reason: 'Code Redox could not read Git working-tree evidence after the repair.' }; }
+}
+
+async function prettierFormatFile(file) {
+  try {
+    const prettier = await import('prettier');
+    const source = await fs.readFile(file.full, 'utf8');
+    const info = await prettier.getFileInfo(file.full, { ignorePath: false });
+    if (info.ignored || !info.inferredParser) return null;
+    const config = (await prettier.resolveConfig(file.full)) || {};
+    const output = await prettier.format(source, { ...config, filepath: file.full });
+    return { source, output, changed: source !== output };
+  } catch { return null; }
+}
+
+function firstChangedLine(before, after) {
+  const original = before.split(/\r?\n/);
+  const formatted = after.split(/\r?\n/);
+  const length = Math.min(original.length, formatted.length);
+  for (let index = 0; index < length; index += 1) if (original[index] !== formatted[index]) return index + 1;
+  return length + 1;
 }
 
 async function listFiles(root) {
