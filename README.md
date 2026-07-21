@@ -4,7 +4,7 @@
 
 **Hackathon track:** Developer Tools<br>
 **Platform:** Windows 10/11 (64-bit)<br>
-**Built with:** Electron, Node.js, Codex, and GPT-5.6
+**Built with:** Electron, Node.js, Codex and GPT 5.6.
 
 [Download the Windows installer](https://github.com/withinJoel/CodeRedox/releases) · [Report an issue](https://github.com/withinJoel/CodeRedox/issues)
 
@@ -24,9 +24,9 @@ Open any repository, run an audit, inspect the exact files and lines involved, t
 - Provides a **Time Machine** view that links current findings to the Git commits that last changed their lines.
 - Creates an evidence-based **Forecast** of maintenance hotspots from scan findings, dependency signals, and recent Git change frequency.
 - Adds **Codebase Rescue Mode**: a guided before/after story that captures a health baseline, gates ship readiness, traces risk through Git, recommends the one highest-impact change, verifies a Codex repair, and produces a shareable handoff brief.
-- Adds **Repair Flight Plan**: before authorizing a Codex repair, Code Redox builds a local evidence-backed preflight for the selected findingâ€”its likely blast radius, Git churn, behavior-preservation contract, allowed file scope, verification commands, and review gates. The approved plan is passed into the focused Codex task and the result is re-scanned.
+- Adds **Repair Flight Plan**: before authorizing a Codex repair, Code Redox builds a local evidence-backed preflight for the selected finding its likely blast radius, Git churn, behavior-preservation contract, allowed file scope, verification commands, and review gates. The approved plan is passed into the focused Codex task and the result is re-scanned.
 - Produces a **Repair Receipt** after an approved Flight Plan runs: it compares the Git working-tree change set against the allowed scope and pairs that evidence with the fresh scan outcome. A clean baseline makes the receipt an isolated, reviewable proof of agent adherence.
-- Shows a **Decision Lens** on every finding: priority rank, risk tier, same-file pressure, repeated-pattern count, release posture, and project healthâ€”with the heuristic disclosed so developers can make an informed review decision.
+- Shows a **Decision Lens** on every finding: priority rank, risk tier, same-file pressure, repeated-pattern count, release posture, and project health with the heuristic disclosed so developers can make an informed review decision.
 - Includes **Fix Ripple**, an interactive no-write simulation that previews how resolving one finding changes active findings, maintenance drag, high-risk signals, file pressure, and the next best focus before a user authorizes a repair.
 - Adds **Redox Gate**, a pre-merge passport for the current Git working tree: it maps changed files, intersects them with current scan findings, highlights sensitive surfaces, suggests the project’s verification route, and gives an explainable **Awaiting Diff / Hold / Review / Clear to Review** posture. It is intentionally evidence for a human merge decision—not a replacement for testing or review.
 - Audits supported dependency manifests, checks public registry versions, identifies duplicate declarations/capability overlap and apparent unused packages, and can update or uninstall packages from the UI.
@@ -60,7 +60,7 @@ The installer is the quickest way for judges to test the app without rebuilding 
 
 ### To use Codex-powered actions
 
-Code Redox can scan repositories without Codex. To use **Fix via Codex** or the **Chat** tab, install and sign in to the current [Codex CLI](https://developers.openai.com/codex/cli/), with access to GPT-5.6. Ensure `codex` is available on your `PATH`; alternatively, set `CODEX_CLI_PATH` to the absolute path of the Codex executable. The application runs Codex in the folder you opened.
+Code Redox can scan repositories without Codex. To use **Fix via Codex** or the **Chat** tab, install and sign in to the current [Codex CLI](https://developers.openai.com/codex/cli/). Ensure `codex` is available on your `PATH`; alternatively, set `CODEX_CLI_PATH` to the absolute path of the Codex executable. The application runs Codex in the folder you opened and uses the model configured by that CLI; it does not select a model itself.
 
 Before using a write action, commit or otherwise back up the target repository. Code Redox narrows the prompt to the selected finding(s), but the resulting code change remains yours to inspect, test, and commit.
 
@@ -116,11 +116,11 @@ This tells the full product story in one pass: find risk, understand its history
 
 ## How Codex and GPT-5.6 shaped the project
 
-This project was built during the hackathon with Codex using GPT-5.6 as the core implementation collaborator. The collaboration was used to move quickly from product exploration to a testable Windows desktop application:
+This project was built during the hackathon with Codex using GPT 5.6 as the core implementation collaborator. The collaboration was used to move quickly from product exploration to a testable Windows desktop application:
 
 - **Product and UX iteration:** Codex helped turn the broad idea of “AI coding slop” into a practical workflow: scan, understand context, decide, make a focused change, and verify with a re-scan. The final product decisions—local-first scanning, per-check controls, Git context, and explicit write authorization—were made to keep developers in control.
 - **Engineering acceleration:** Codex helped implement the Electron main/preload/renderer split, safe IPC boundaries, concurrent scan orchestration, caching, Git history views, dependency discovery across ecosystems, and the test suite.
-- **Focused repair workflow:** GPT-5.6 is accessed through the user’s Codex CLI for repository chat and repair tasks. Code Redox writes a temporary, narrowly scoped task file for the selected finding(s), invokes `codex exec`, streams status into the UI, removes the task file afterward, and re-scans the project. Ask mode uses a read-only sandbox; Work mode requires explicit user authorization.
+- **Focused repair workflow:** Code Redox uses the user’s configured Codex CLI model for repository chat and repair tasks. It writes a temporary, narrowly scoped task file for the selected finding(s), invokes `codex exec`, streams status into the UI, removes the task file afterward, and re-scans the project. Ask mode uses a read-only sandbox; Work mode requires explicit user authorization.
 - **Quality decisions:** Codex was used to refine prompt templates for safe minimal edits, add guards around filesystem cleanup, normalize third-party tool output, and add regression coverage for the analysis helpers.
 
 The human builder directed the feature scope, decided which automation should be opt-in, reviewed code and test behavior, and chose the final design and release path.
@@ -145,7 +145,7 @@ Code Redox excludes common generated/vendor locations such as `node_modules`, `.
 ## Important notes
 
 - Code Redox provides **static-analysis signals**, not a security certification or a replacement for code review, testing, dependency policy, or professional security assessment.
-- The app reads and analyzes the local folder selected by the user. It accesses the network only for public package-registry lookups and when the user deliberately invokes Codex through their configured CLI.
+- The app reads and analyzes the local folder selected by the user. It accesses the network for public package-registry lookups, public GitHub contributor data when the opened project has a GitHub remote, and when the user deliberately invokes Codex through their configured CLI.
 - Package usage detection is heuristic and based on static imports/references; verify a dependency before removing it.
 - Git features degrade gracefully when a project has no repository history.
 - Do not open untrusted repositories with write-authorized Codex actions unless you have reviewed the scope and have a backup or commit to return to.
