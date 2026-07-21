@@ -4,7 +4,7 @@
 
 **Hackathon track:** Developer Tools<br>
 **Platform:** Windows 10/11 (64-bit)<br>
-**Built with:** Electron, Node.js, Codex and GPT 5.6.
+**Built with:** Electron, Node.js, **Codex**, and **GPT-5.6**.
 
 [Download the Windows installer](https://github.com/withinJoel/CodeRedox/releases) · [Report an issue](https://github.com/withinJoel/CodeRedox/issues)
 
@@ -114,16 +114,28 @@ Electron Builder writes the release artifacts to `dist/`. Upload the generated `
 
 This tells the full product story in one pass: find risk, understand its history, preview a safe AI repair, fix it with explicit constraints, and prove the outcome.
 
-## How Codex and GPT-5.6 shaped the project
+## Hackathon implementation: Codex + GPT-5.6
 
-This project was built during the hackathon with Codex using GPT 5.6 as the core implementation collaborator. The collaboration was used to move quickly from product exploration to a testable Windows desktop application:
+**GPT-5.6 was the primary implementation collaborator used through Codex during this hackathon.** It was used for more than isolated code completion: it helped take Code Redox from a code-health scanner to a complete, testable Windows developer-tool workflow. The builder set the product direction, reviewed the generated work, and made the final product and engineering decisions; Codex accelerated the exploration, implementation, and iteration.
 
-- **Product and UX iteration:** Codex helped turn the broad idea of “AI coding slop” into a practical workflow: scan, understand context, decide, make a focused change, and verify with a re-scan. The final product decisions—local-first scanning, per-check controls, Git context, and explicit write authorization—were made to keep developers in control.
-- **Engineering acceleration:** Codex helped implement the Electron main/preload/renderer split, safe IPC boundaries, concurrent scan orchestration, caching, Git history views, dependency discovery across ecosystems, and the test suite.
-- **Focused repair workflow:** Code Redox uses the user’s configured Codex CLI model for repository chat and repair tasks. It writes a temporary, narrowly scoped task file for the selected finding(s), invokes `codex exec`, streams status into the UI, removes the task file afterward, and re-scans the project. Ask mode uses a read-only sandbox; Work mode requires explicit user authorization.
-- **Quality decisions:** Codex was used to refine prompt templates for safe minimal edits, add guards around filesystem cleanup, normalize third-party tool output, and add regression coverage for the analysis helpers.
+### Where Codex accelerated the workflow
 
-The human builder directed the feature scope, decided which automation should be opt-in, reviewed code and test behavior, and chose the final design and release path.
+- **From idea to an end-to-end workflow:** Working with GPT-5.6 in Codex helped refine the original “AI coding slop” idea into the shipped flow: scan a local repository, explain the evidence, map history and likely future pressure, preview the repair, require explicit approval, verify the result, and hand the outcome back to a team.
+- **Multi-file Electron implementation:** Codex accelerated work across the Electron main process, context-isolated preload bridge, renderer UI, static-analysis workers, Git integration, caching, package inspection, and tests. This made it practical to iterate on a desktop experience while preserving clear boundaries between the UI and local filesystem access.
+- **Evidence before agent action:** GPT-5.6 helped design and implement Rescue Mode, Decision Lens, Fix Ripple, Repair Flight Plan, Repair Receipt, and Redox Gate. These features were deliberate product decisions: before an AI repair is approved, the developer sees local blast radius, file scope, Git churn, behavior constraints, verification commands, and an explicit human review gate.
+- **Focused Codex repair loop:** For a repair, Code Redox creates a temporary task containing only the selected finding and, when approved, its Flight Plan constraints. It invokes `codex exec`, streams the activity into the app, removes the temporary file, re-scans the repository, and can compare the resulting Git change set with the allowed scope. GPT-5.6 and Codex made this constrained, reviewable agent workflow feasible to build and iterate quickly.
+- **Quality and release hardening:** Codex accelerated regression-test coverage for analysis helpers, safer filesystem cleanup, output normalization for third-party tools, concurrency improvements, formatting-drift repair, and the Windows packaging path. The builder validated behavior with tests and reviewed the release workflow.
+
+### Key decisions made by the builder
+
+- **Local-first by default:** Code Redox analyzes the folder chosen by the developer; findings, Git context, and evidence stay in the local workflow.
+- **No silent writes:** Chat has a read-only Ask mode. Work mode and every repair require an explicit user action; formatting has its own explicit Prettier action.
+- **Evidence, not certainty:** Static findings, forecasts, and Redox Gate are presented as explainable evidence for a human decision—not claims that code is safe or that a future failure is guaranteed.
+- **Constrain, then verify:** The Flight Plan deliberately limits an AI task before it runs, while the Receipt, re-scan, Git diff, and suggested test route make post-change review concrete.
+
+### GPT-5.6 in the shipped experience
+
+The hackathon build work used GPT-5.6 through Codex. At runtime, Code Redox delegates repository chat and repair requests to the model configured in the user’s local Codex CLI; the app does not silently select or override that model. This keeps model access and authorization with the developer while preserving the focused workflow built with Codex and GPT-5.6.
 
 > **Codex feedback session:** 019f7ae4-892a-7aa1-8915-cb685a145493
 
