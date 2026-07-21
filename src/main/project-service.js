@@ -421,13 +421,14 @@ export class ProjectService {
     this.issues.delete(issueId);
     return { issueId };
   }
-  async fixViaCodex(projectId, issueId) {
+  async fixViaCodex(projectId, issueId, useFlightPlan = false) {
     const project = this.projects.get(projectId);
     const issue = this.issues.get(issueId);
     if (!project || !issue || issue.projectId !== projectId) throw new Error('That finding is no longer available.');
     const taskFile = `.coderedox-codex-task-${crypto.randomUUID()}.md`;
     const taskPath = path.join(project.path, taskFile);
-    const task = `# CodeRedox single-finding fix task\n\nFix only the finding below. Work only on files required by it, preserve project conventions, do not change unrelated code, and verify the fix before finishing.\n\n## Finding\n${buildPrompt(issue)}`;
+    const flightPlan = useFlightPlan ? await this.getRepairFlightPlan(projectId, issueId) : null;
+    const task = `# CodeRedox single-finding fix task\n\nFix only the finding below. Work only on files required by it, preserve project conventions, do not change unrelated code, and verify the fix before finishing.${flightPlan ? `\n\n## Approved Repair Flight Plan\n${flightPlan.codexTask}` : ''}\n\n## Finding\n${buildPrompt(issue)}`;
     await fs.writeFile(taskPath, task, { encoding: 'utf8', flag: 'wx' });
     try {
       await runCodexCli(project.path, `Read ${taskFile} in the current project and complete the requested fix. Do not change unrelated code.`, event => this.send('codex:progress', { projectId, ...event }));
@@ -456,6 +457,46 @@ export class ProjectService {
     }
     project.cached = null;
     return { message: `Codex completed ${issues.length} ${check.label.toLowerCase()} fixes.` };
+  }
+  async getRepairFlightPlan(projectId, issueId) {
+    const project = this.projects.get(projectId);
+    const issue = this.issues.get(issueId);
+    if (!project || !issue || issue.projectId !== projectId) throw new Error('That finding is no longer available.');
+
+    const check = CHECKS.find(item => item.id === issue.type);
+    const [relatedFiles, gitHistory, commands] = await Promise.all([
+      findRepairRelatedFiles(project, issue),
+      getRepairGitHistory(project.path, issue.file),
+      getRepairVerificationCommands(project.path)
+    ]);
+    const group = check?.group || 'Code health';
+    const impact = repairImpact(issue, group, relatedFiles.length, gitHistory.commits);
+    const contract = repairContract(issue, group);
+    return {
+      issueId: issue.id,
+      title: check?.label || issue.type,
+      impact,
+      target: { file: issue.file, line: issue.line, endLine: issue.endLine, symbol: issue.symbol || null },
+      summary: `${issue.reason} This preflight is generated locally before any AI write is authorized.`,
+      contract,
+      scope: {
+        allow: [issue.file, ...relatedFiles].slice(0, 6),
+        avoid: ['Generated output, lockfiles, dependency manifests, and unrelated formatting unless the repair makes one necessary.'],
+        relatedFiles
+      },
+      history: gitHistory,
+      verification: {
+        commands,
+        scan: `Re-run ${check?.label || 'the selected'} check and review the resulting diff.`,
+        rollback: 'Keep the repair in a separate commit or use your Git diff to revert the focused change.'
+      },
+      gates: [
+        'Confirm this static signal matches the intended behavior before editing.',
+        `Keep Codex inside the declared file scope (${[issue.file, ...relatedFiles].slice(0, 3).join(', ')}).`,
+        'Review the diff, run the suggested verification, then let Code Redox re-scan the finding.'
+      ],
+      codexTask: `Repair Flight Plan for ${issue.file}:${issue.line}\n\nBehavior contract: ${contract}\n\nAllowed scope: ${[issue.file, ...relatedFiles].slice(0, 6).join(', ')}\n\nDo not modify generated output, lockfiles, dependency manifests, or unrelated formatting. Verify with: ${commands.join(' && ') || 'the nearest relevant test'}\n\nFinding:\n${buildPrompt(issue)}`
+    };
   }
   async chatWithCodex(projectId, { message, mode = 'ask', history = [] } = {}) {
     const project = this.projects.get(projectId);
@@ -596,6 +637,73 @@ export class ProjectService {
       }))));
     } finally { await fs.rm(reportDir, { recursive: true, force: true }); }
   }
+}
+
+const REPAIR_SEVERITY = {
+  secrets: 5, 'sql-injection': 5, 'xss-sinks': 5, 'command-injection': 5, 'path-traversal': 5,
+  'unsafe-file-uploads': 5, 'tls-validation': 5, 'unsafe-deserialization': 5, 'weak-cryptography': 4,
+  'insecure-randomness': 4, 'permissive-cors': 4, 'logic-conditions': 4, 'error-handling': 4,
+  'unsafe-operations': 4, 'duplicate-code': 3, 'complex-logic': 3, 'long-functions': 3
+};
+
+function repairImpact(issue, group, relatedCount, commitCount) {
+  const score = (REPAIR_SEVERITY[issue.type] || (group === 'Security' ? 4 : 2)) + (relatedCount > 2 ? 1 : 0) + (commitCount > 6 ? 1 : 0);
+  const level = score >= 5 ? 'High' : score >= 3 ? 'Guarded' : 'Focused';
+  return {
+    level,
+    score: Math.min(10, score),
+    explanation: `${group} signal${relatedCount ? ` with ${relatedCount} nearby reference${relatedCount === 1 ? '' : 's'}` : ''}${commitCount ? ` and ${commitCount} file commit${commitCount === 1 ? '' : 's'} in recent history` : ''}.`
+  };
+}
+
+function repairContract(issue, group) {
+  const contracts = {
+    Security: 'Close the unsafe path while preserving legitimate, validated input and the current user-facing response.',
+    Reliability: 'Preserve the successful path; make the expected failure path explicit and testable.',
+    Maintainability: 'Keep observable behavior identical while making the risky code easier to change correctly.',
+    'Clean code': 'Keep public behavior and imports stable; make only the smallest cleanup needed to remove the signal.',
+    Foundations: 'Do not change runtime behavior; remove or clarify only the development residue identified by the scan.',
+    'Project cleanup': 'Remove the artifact only after confirming that tooling and repository conventions do not require it.',
+    'Runtime safety': 'Preserve supported inputs while bounding or validating the risky runtime path.',
+    Accessibility: 'Preserve the interaction while ensuring the affected element has a meaningful accessible alternative.'
+  };
+  return contracts[group] || `Resolve ${issue.reason.toLowerCase()} without changing behavior outside the flagged path.`;
+}
+
+async function findRepairRelatedFiles(project, issue) {
+  const basename = path.basename(issue.file).replace(path.extname(issue.file), '');
+  const importNeedle = issue.file.replace(path.extname(issue.file), '').replace(/^\.\//, '');
+  const candidates = project.files.filter(file => file.relative !== issue.file && !/node_modules|\.min\./i.test(file.relative));
+  const related = await mapWithConcurrency(candidates, 10, async file => {
+    try {
+      const stat = await fs.stat(file.full);
+      if (stat.size > 384 * 1024) return null;
+      const source = await fs.readFile(file.full, 'utf8');
+      const isTest = /(?:^|[./_-])(test|tests|spec|__tests__)(?:[./_-]|$)/i.test(file.relative);
+      const referencesTarget = basename.length > 2 && (source.includes(`./${importNeedle}`) || source.includes(`../${importNeedle}`) || source.includes(`'${basename}'`) || source.includes(`\"${basename}\"`));
+      return referencesTarget || (isTest && source.includes(basename)) ? file.relative : null;
+    } catch { return null; }
+  });
+  return related.filter(Boolean).sort((left, right) => left.localeCompare(right)).slice(0, 5);
+}
+
+async function getRepairGitHistory(root, file) {
+  try {
+    const raw = await simpleGit(root).raw(['log', '--max-count=12', '--format=%h%x00%aI%x00%s', '--', file]);
+    const entries = raw.trim().split(/\r?\n/).filter(Boolean).map(line => {
+      const [hash, date, subject] = line.split('\0');
+      return { hash, date, subject };
+    }).filter(item => item.hash);
+    return { commits: entries.length, latest: entries[0] || null };
+  } catch { return { commits: 0, latest: null }; }
+}
+
+async function getRepairVerificationCommands(root) {
+  try {
+    const manifest = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
+    const scripts = manifest.scripts || {};
+    return ['test', 'lint', 'typecheck', 'check'].filter(name => scripts[name]).slice(0, 2).map(name => `npm run ${name}`);
+  } catch { return []; }
 }
 
 async function listFiles(root) {

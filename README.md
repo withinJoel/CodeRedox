@@ -23,6 +23,7 @@ Open any repository, run an audit, inspect the exact files and lines involved, t
 - Provides a **Time Machine** view that links current findings to the Git commits that last changed their lines.
 - Creates an evidence-based **Forecast** of maintenance hotspots from scan findings, dependency signals, and recent Git change frequency.
 - Adds **Codebase Rescue Mode**: a guided before/after story that captures a health baseline, gates ship readiness, traces risk through Git, recommends the one highest-impact change, verifies a Codex repair, and produces a shareable handoff brief.
+- Adds **Repair Flight Plan**: before authorizing a Codex repair, Code Redox builds a local evidence-backed preflight for the selected findingâ€”its likely blast radius, Git churn, behavior-preservation contract, allowed file scope, verification commands, and review gates. The approved plan is passed into the focused Codex task and the result is re-scanned.
 - Audits supported dependency manifests, checks public registry versions, identifies duplicate declarations/capability overlap and apparent unused packages, and can update or uninstall packages from the UI.
 - Gives the codebase playful “Awards” to reveal its largest files/functions, most-commented areas, and debugging hotspots.
 - Offers a repository-aware **Codex chat** in read-only *Ask* mode or explicit write-authorized *Work* mode.
@@ -101,10 +102,10 @@ Electron Builder writes the release artifacts to `dist/`. Upload the generated `
 1. Open a deliberately imperfect Git repository and select **Rescue**.
 2. Choose **Start live rescue** to capture the Redox Index, finding count, maintenance-drag estimate, and Git/forecast evidence.
 3. Show the **Ship Readiness Gate** and **One-Change Challenge**, then open the recommended finding.
-4. Use **Fix with Codex**, review the focused result, and let Code Redox re-scan automatically.
+4. Choose **Create flight plan** to reveal the local blast-radius map, behavior contract, test route, and scope gates; then choose **Approve & run this plan**.
 5. Return to Rescue to show the verified before/after proof, then copy the **Team Handoff Brief**.
 
-This tells the full product story in one pass: find risk, understand its history, fix it safely, and prove the outcome.
+This tells the full product story in one pass: find risk, understand its history, preview a safe AI repair, fix it with explicit constraints, and prove the outcome.
 
 ## How Codex and GPT-5.6 shaped the project
 

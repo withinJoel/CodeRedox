@@ -16,10 +16,11 @@ contextBridge.exposeInMainWorld("api", {
   getAwards: (projectId) => ipcRenderer.invoke("project:get-awards", projectId),
   managePackage: (projectId, packageId, action) => ipcRenderer.invoke("project:manage-package", projectId, packageId, action),
   deleteEmptyArtifact: (projectId, issueId) => ipcRenderer.invoke("issue:delete-empty-artifact", projectId, issueId),
-  fixViaCodex: (projectId, issueId) => ipcRenderer.invoke("issue:fix-via-codex", projectId, issueId),
+  fixViaCodex: (projectId, issueId, useFlightPlan = false) => ipcRenderer.invoke("issue:fix-via-codex", projectId, issueId, useFlightPlan),
   fixCheckViaCodex: (projectId, checkId, issueIds) => ipcRenderer.invoke("issue:fix-check-via-codex", projectId, checkId, issueIds),
   chatWithCodex: (projectId, request) => ipcRenderer.invoke("project:chat-with-codex", projectId, request),
   getIssueCommit: (projectId, issueId) => ipcRenderer.invoke("issue:get-commit", projectId, issueId),
+  getRepairFlightPlan: (projectId, issueId) => ipcRenderer.invoke("issue:get-repair-flight-plan", projectId, issueId),
   getFixPrompt: (issueId) =>
     ipcRenderer.invoke("issue:get-fix-prompt", issueId),
   highlightIssue: (issueId) => ipcRenderer.invoke("issue:highlight", issueId),
