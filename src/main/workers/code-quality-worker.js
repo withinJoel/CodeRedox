@@ -14,6 +14,7 @@ function inspect(ruleName, lines) {
     case 'debug-code': return findDebugCode(lines);
     case 'todo-debt': return findTodoDebt(lines);
     case 'duplicate-imports': return findDuplicateImports(lines);
+    case 'empty-functions': return findEmptyFunctions(lines);
     case 'magic-values': return findMagicValues(lines);
     case 'long-functions': return findLongFunctions(lines);
     case 'large-files': return findLargeFiles(lines);
@@ -21,6 +22,8 @@ function inspect(ruleName, lines) {
     case 'nested-ternaries': return findNestedTernaries(lines);
     case 'complex-logic': return findComplexLogic(lines);
     case 'logic-conditions': return findLogicConditions(lines);
+    case 'non-strict-equality': return findNonStrictEquality(lines);
+    case 'missing-switch-default': return findMissingSwitchDefault(lines);
     case 'error-handling': return findEmptyCatchBlocks(lines);
     case 'empty-branches': return findEmptyBranches(lines);
     case 'broad-exception-handling': return findBroadExceptionHandling(lines);
@@ -36,6 +39,8 @@ function inspect(ruleName, lines) {
     case 'regex-dos': return findRegexDos(lines);
     case 'insecure-cookies': return findInsecureCookies(lines);
     case 'insecure-http': return findInsecureHttp(lines);
+    case 'sensitive-logging': return findSensitiveLogging(lines);
+    case 'command-injection': return findCommandInjection(lines);
     case 'unsafe-operations': return findUnsafeOperations(lines);
     case 'unbounded-loops': return findUnboundedLoops(lines);
     case 'deprecated-apis': return findDeprecatedApis(lines);
@@ -114,6 +119,24 @@ function findDuplicateImports(lines) {
   return findings;
 }
 
+function findEmptyFunctions(lines) {
+  const findings = [];
+  const controls = new Set(['if', 'for', 'while', 'switch', 'catch']);
+  for (let index = 0; index < lines.length; index += 1) {
+    const source = codeOnly(lines[index]);
+    const match = source.match(/(?:\bfunction\s+([\w$]+)|\b([\w$]+)\s*=\s*(?:async\s*)?\([^)]*\)\s*=>|\b([\w$]+)\s*\([^)]*\)\s*\{)/);
+    if (!match || !source.includes('{')) continue;
+    const name = match[1] || match[2] || match[3] || 'function';
+    if (controls.has(name) || /^(?:noop|noOp|stub|placeholder)$/i.test(name)) continue;
+    const opening = source.indexOf('{');
+    const end = closingLine(lines, index, opening);
+    if (end === -1) continue;
+    const body = (end === index ? lines[index].slice(opening + 1, lines[index].lastIndexOf('}')) : lines.slice(index + 1, end).join('\n')).replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '').trim();
+    if (!body) findings.push({ line: index + 1, endLine: end + 1, symbol: name, reason: 'Named function has an empty body. Implement it, remove it, or document why it is an intentional extension point.' });
+  }
+  return findings;
+}
+
 function findMagicValues(lines) {
   return lines.flatMap((line, index) => {
     const code = codeOnly(line);
@@ -180,6 +203,28 @@ function findLogicConditions(lines) {
   });
 }
 
+function findNonStrictEquality(lines) {
+  return lines.flatMap((line, index) => {
+    const source = codeOnly(line);
+    if (!/(?:^|[^=!])==(?!=)|!=(?!=)/.test(source)) return [];
+    if (/(?:==|!=)\s*null\b|\bnull\s*(?:==|!=)/.test(source)) return [];
+    return [{ line: index + 1, reason: 'Non-strict equality can coerce values unexpectedly. Use === or !== unless coercion is explicitly required.' }];
+  });
+}
+
+function findMissingSwitchDefault(lines) {
+  const findings = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!/\bswitch\s*\(/.test(codeOnly(lines[index])) || !lines[index].includes('{')) continue;
+    const end = closingLine(lines, index, lines[index].indexOf('{'));
+    if (end === -1) continue;
+    const body = lines.slice(index, end + 1).join('\n');
+    const cases = (body.match(/\bcase\b/g) || []).length;
+    if (cases >= 2 && !/\bdefault\s*:/.test(body)) findings.push({ line: index + 1, endLine: end + 1, symbol: 'switch', reason: 'Switch handles multiple cases without a default path. Add an explicit fallback for future or unexpected values.' });
+  }
+  return findings;
+}
+
 function findEmptyCatchBlocks(lines) {
   const issues = [];
   for (let index = 0; index < lines.length; index += 1) {
@@ -224,6 +269,24 @@ function findInsecureHttp(lines) {
     const urls = [...source.matchAll(/['"](http:\/\/[^'"\s/]+[^'"]*)['"]/gi)].map(match => match[1]);
     const unsafe = urls.find(url => !/^http:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(?::|\/|$)/i.test(url));
     return unsafe ? [{ line: index + 1, symbol: 'http://', reason: 'Non-local endpoint uses unencrypted HTTP. Use HTTPS unless the transport is deliberately isolated and protected.' }] : [];
+  });
+}
+
+function findSensitiveLogging(lines) {
+  return lines.flatMap((line, index) => {
+    const source = codeOnly(line);
+    if (!/\b(?:console\.(?:log|debug|info)|logger\.(?:debug|info)|print)\s*\(/i.test(source)) return [];
+    if (!/(?:password|passwd|token|secret|api[_-]?key|credential|authorization|cookie)/i.test(source)) return [];
+    return [{ line: index + 1, symbol: 'log', reason: 'Logging appears to include a sensitive value. Redact it or log a non-sensitive identifier instead.' }];
+  });
+}
+
+function findCommandInjection(lines) {
+  return lines.flatMap((line, index) => {
+    const source = withoutLineComments(line);
+    if (!/\b(?:exec|execSync|spawn|spawnSync|system|shell_exec|passthru)\s*\(/.test(source)) return [];
+    if (!/\b(?:req|request)\.(?:query|params|body)|\b(?:userInput|commandInput|input)\b/i.test(source)) return [];
+    return [{ line: index + 1, symbol: 'command', reason: 'Shell command construction appears to receive request or user-controlled input. Use an allowlist and pass fixed arguments without a shell.' }];
   });
 }
 

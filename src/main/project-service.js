@@ -15,7 +15,7 @@ import { addLatestVersions, discoverPackages, managePackage } from './package-se
 import { deleteEmptyArtifact, findEmptyArtifacts } from './empty-artifact-service.js';
 
 const EXCLUDED = new Set(['node_modules', '.git', 'dist', 'build', '.next', 'coverage']);
-const SCAN_VERSION = 10;
+const SCAN_VERSION = 11;
 const AWARD_SOURCE_FILE = /\.(?:[cm]?js|jsx|tsx?|mjs|cjs|java|php|py|rb|go|rs|cs|swift|kt)$/i;
 const MAX_AWARD_FILE_BYTES = 2 * 1024 * 1024;
 const LANGUAGE_BY_EXTENSION = {
@@ -33,6 +33,7 @@ const CHECKS = [
   { id: 'dead-code', label: 'Dead Code', command: 'knip', group: 'Clean code' },
   { id: 'duplicate-code', label: 'Duplicate Code', command: 'jscpd', group: 'Clean code' },
   { id: 'duplicate-imports', label: 'Duplicate Imports', command: 'built-in', group: 'Clean code' },
+  { id: 'empty-functions', label: 'Empty Functions', command: 'built-in', group: 'Clean code' },
   { id: 'magic-values', label: 'Magic Values', command: 'built-in', group: 'Clean code' },
   { id: 'empty-artifacts', label: 'Empty Files & Folders', command: 'built-in', group: 'Project cleanup' },
   { id: 'long-functions', label: 'Long Functions', command: 'built-in', group: 'Maintainability' },
@@ -41,6 +42,8 @@ const CHECKS = [
   { id: 'nested-ternaries', label: 'Nested Ternaries', command: 'built-in', group: 'Maintainability' },
   { id: 'complex-logic', label: 'Complex Logic', command: 'built-in', group: 'Maintainability' },
   { id: 'logic-conditions', label: 'Logic Conditions', command: 'built-in', group: 'Reliability' },
+  { id: 'non-strict-equality', label: 'Non-strict Equality', command: 'built-in', group: 'Reliability' },
+  { id: 'missing-switch-default', label: 'Missing Switch Default', command: 'built-in', group: 'Reliability' },
   { id: 'error-handling', label: 'Error Handling', command: 'built-in', group: 'Reliability' },
   { id: 'empty-branches', label: 'Empty Branches', command: 'built-in', group: 'Reliability' },
   { id: 'broad-exception-handling', label: 'Broad Exceptions', command: 'built-in', group: 'Reliability' },
@@ -56,6 +59,8 @@ const CHECKS = [
   { id: 'regex-dos', label: 'Regex DoS', command: 'built-in', group: 'Security' },
   { id: 'insecure-cookies', label: 'Insecure Cookies', command: 'built-in', group: 'Security' },
   { id: 'insecure-http', label: 'Insecure HTTP', command: 'built-in', group: 'Security' },
+  { id: 'sensitive-logging', label: 'Sensitive Logging', command: 'built-in', group: 'Security' },
+  { id: 'command-injection', label: 'Command Injection', command: 'built-in', group: 'Security' },
   { id: 'unsafe-operations', label: 'Unsafe Operations', command: 'built-in', group: 'Runtime safety' },
   { id: 'unbounded-loops', label: 'Unbounded Loops', command: 'built-in', group: 'Runtime safety' },
   { id: 'package-integrity', label: 'Package Integrity', command: 'slop-scan', group: 'Runtime safety' },
@@ -105,6 +110,7 @@ export class ProjectService {
       'dead-code': () => this.runKnip(project),
       'duplicate-code': () => this.runJscpd(project),
       'duplicate-imports': () => this.runCodeQuality(project, 'duplicate-imports'),
+      'empty-functions': () => this.runCodeQuality(project, 'empty-functions'),
       whitespace: () => this.runWhitespace(project),
       'debug-code': () => this.runCodeQuality(project, 'debug-code'),
       'todo-debt': () => this.runCodeQuality(project, 'todo-debt'),
@@ -116,6 +122,8 @@ export class ProjectService {
       'nested-ternaries': () => this.runCodeQuality(project, 'nested-ternaries'),
       'complex-logic': () => this.runCodeQuality(project, 'complex-logic'),
       'logic-conditions': () => this.runCodeQuality(project, 'logic-conditions'),
+      'non-strict-equality': () => this.runCodeQuality(project, 'non-strict-equality'),
+      'missing-switch-default': () => this.runCodeQuality(project, 'missing-switch-default'),
       'error-handling': () => this.runCodeQuality(project, 'error-handling'),
       'empty-branches': () => this.runCodeQuality(project, 'empty-branches'),
       'broad-exception-handling': () => this.runCodeQuality(project, 'broad-exception-handling'),
@@ -131,6 +139,8 @@ export class ProjectService {
       'regex-dos': () => this.runCodeQuality(project, 'regex-dos'),
       'insecure-cookies': () => this.runCodeQuality(project, 'insecure-cookies'),
       'insecure-http': () => this.runCodeQuality(project, 'insecure-http'),
+      'sensitive-logging': () => this.runCodeQuality(project, 'sensitive-logging'),
+      'command-injection': () => this.runCodeQuality(project, 'command-injection'),
       'unsafe-operations': () => this.runCodeQuality(project, 'unsafe-operations'),
       'unbounded-loops': () => this.runCodeQuality(project, 'unbounded-loops'),
       'package-integrity': () => this.runPackageIntegrity(project),

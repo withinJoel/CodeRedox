@@ -179,3 +179,36 @@ test('does not flag local HTTP endpoints or loops with an exit path', async () =
   assert.equal(http.length, 0);
   assert.equal(loops.length, 0);
 });
+
+test('finds five more focused audit patterns', async () => {
+  const source = `
+function unfinished() {}
+if (role == 'admin') grant();
+switch (kind) { case 'a': one(); break; case 'b': two(); break; }
+console.log('token', authToken);
+exec(req.query.command);
+`;
+  const [emptyFunctions, equality, switches, logging, commands] = await Promise.all([
+    scan('empty-functions', source),
+    scan('non-strict-equality', source),
+    scan('missing-switch-default', source),
+    scan('sensitive-logging', source),
+    scan('command-injection', source)
+  ]);
+  assert.deepEqual(emptyFunctions.map(issue => issue.line), [2]);
+  assert.deepEqual(equality.map(issue => issue.line), [3]);
+  assert.deepEqual(switches.map(issue => issue.line), [4]);
+  assert.deepEqual(logging.map(issue => issue.line), [5]);
+  assert.deepEqual(commands.map(issue => issue.line), [6]);
+});
+
+test('does not flag strict equality, intentional noop, or command constants', async () => {
+  const [equality, functions, commands] = await Promise.all([
+    scan('non-strict-equality', "if (role === 'admin') grant();"),
+    scan('empty-functions', 'function noop() {}'),
+    scan('command-injection', "exec('git status');")
+  ]);
+  assert.equal(equality.length, 0);
+  assert.equal(functions.length, 0);
+  assert.equal(commands.length, 0);
+});
