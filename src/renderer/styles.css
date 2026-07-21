@@ -1440,3 +1440,41 @@ body { color: var(--fg); letter-spacing: -0.01em; }
 .decision-lens footer { padding: 0 19px 17px; display: flex; gap: 6px; align-items: flex-start; color: #62708a; font-size: 10px; line-height: 1.45; }
 .decision-lens footer .icon { flex: 0 0 auto; margin-top: 1px; color: #4968bd; }
 @media (max-width: 760px) { .decision-lens > header { display: grid; } .decision-action { justify-self: start; } .decision-grid { grid-template-columns: 1fr; } }
+
+/* Fix Ripple */
+.fix-ripple { margin-top: 16px; border: 1px solid #b9d7df; border-radius: 16px; background: #fff; box-shadow: 0 8px 26px rgb(29 112 126 / .10); }
+.fix-ripple.teaser { padding: 18px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 13px; align-items: center; background: radial-gradient(circle at 87% 15%, #a4e9e088, transparent 28%), linear-gradient(120deg, #effcfb, #fff); }
+.ripple-orb { width: 42px; height: 42px; display: grid; place-items: center; flex: 0 0 auto; border: 1px solid #82cec6; border-radius: 13px; color: #15766d; background: #d9f8f3; box-shadow: inset 0 0 15px #8ee7d83b; }
+.fix-ripple h3 { margin: 3px 0 5px; color: #1d424b; font-size: 17px; }
+.fix-ripple p:not(.kicker) { margin: 0; color: #56707a; font-size: 11px; line-height: 1.5; }
+.btn-ripple { justify-self: end; border-color: #258f87; color: #fff; background: #16746d; }
+.btn-ripple:hover { border-color: #075d57; background: #075d57; }
+.fix-ripple.active { overflow: hidden; }
+.fix-ripple.active > header { padding: 19px 21px; display: flex; gap: 12px; align-items: center; color: #e9fffc; background: radial-gradient(circle at 88% 13%, #67d3c999, transparent 28%), linear-gradient(135deg, #123f48, #1c766e); }
+.fix-ripple.active > header > div:nth-child(2) { min-width: 0; flex: 1; }
+.fix-ripple.active h3 { color: #fff; }
+.fix-ripple.active header p:not(.kicker) { color: #d5f6f1; }
+.fix-ripple.active .kicker { color: #a7eee4; }
+.ripple-close { color: #e4fffa; white-space: nowrap; }
+.ripple-close:hover { color: #fff; }
+.ripple-path { padding: 19px 21px 12px; display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: center; }
+.ripple-path article { min-height: 96px; padding: 14px; display: grid; align-content: center; border: 1px solid #d8e6e7; border-radius: 12px; background: #f7fbfb; text-align: center; }
+.ripple-path article.ripple-after { border-color: #9ddacc; background: linear-gradient(145deg, #effff8, #f8fffc); }
+.ripple-path span, .ripple-metrics span { color: #6b7b83; font-size: 9px; font-weight: 750; letter-spacing: .08em; }
+.ripple-path strong { margin: 3px 0; color: #234d54; font-size: 32px; line-height: 1; }
+.ripple-after strong { color: #18744e; }
+.ripple-path small { color: #60737b; font-size: 10px; }
+.ripple-path > i { color: #188b80; }
+.ripple-path > i .icon { display: block; }
+.ripple-metrics { padding: 0 21px 15px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.ripple-metrics article { min-width: 0; padding: 13px; border: 1px solid #e0e9eb; border-radius: 10px; background: #fff; }
+.ripple-metrics strong { display: block; margin: 6px 0; overflow-wrap: anywhere; color: #214d53; font-size: 18px; }
+.ripple-metrics strong i { color: #169180; font-style: normal; }
+.ripple-metrics small { display: block; color: #667982; font-size: 10px; line-height: 1.45; }
+.ripple-metrics code { color: #16746d; font-size: 9px; overflow-wrap: anywhere; }
+.ripple-next { margin: 0 21px; padding: 12px 13px; border: 1px solid #d2ebdf; border-radius: 10px; background: #f4fcf8; }
+.ripple-next > span { display: flex; gap: 6px; align-items: center; color: #21704d; font-size: 10px; font-weight: 750; }
+.ripple-next p { margin: 5px 0 0; color: #4b705e; font-size: 10px; }
+.fix-ripple.active footer { padding: 16px 21px 19px; display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; }
+.fix-ripple.active footer small { max-width: 510px; color: #667982; font-size: 10px; line-height: 1.45; }
+@media (max-width: 760px) { .fix-ripple.teaser { grid-template-columns: auto minmax(0, 1fr); } .btn-ripple { grid-column: 1 / -1; justify-self: start; } .fix-ripple.active > header { display: grid; grid-template-columns: auto minmax(0, 1fr); } .ripple-close { grid-column: 1 / -1; justify-self: start; } .ripple-metrics { grid-template-columns: 1fr; } }
