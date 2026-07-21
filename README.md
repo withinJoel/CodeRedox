@@ -8,6 +8,12 @@
 
 [Download the Windows installer](https://github.com/withinJoel/CodeRedox/releases) · [Report an issue](https://github.com/withinJoel/CodeRedox/issues)
 
+## Reviewer quick start
+
+**Stage-one viability in under two minutes:** install the Windows release, open any small local Git repository, and let the scan complete. Then open **Rescue** to see a prioritized health baseline, select a finding, create its **Repair Flight Plan**, and open **Redox Gate** after a local change to inspect the pre-merge evidence. This is a runnable desktop developer tool—not a mockup or a prompt-only demo.
+
+To verify the Codex/GPT-5.6 implementation story, see [Hackathon implementation: Codex + GPT-5.6](#hackathon-implementation-codex--gpt-56), the dated Git history, and the runtime integration in [`src/main/project-service.js`](src/main/project-service.js). Codex-powered chat and repair need a signed-in local Codex CLI; the scan, Git views, and static analysis work without it.
+
 ## Why Code Redox?
 
 As a project grows, small compromises pile up: duplicate logic, stale TODOs, unused dependencies, unsafe patterns, and complex files that become difficult to change. Existing tools often surface isolated warnings; Code Redox brings those signals into one local desktop workflow and adds the context needed to decide what to do next.
@@ -138,6 +144,10 @@ This tells the full product story in one pass: find risk, understand its history
 The hackathon build work used GPT-5.6 through Codex. At runtime, Code Redox delegates repository chat and repair requests to the model configured in the user’s local Codex CLI; the app does not silently select or override that model. This keeps model access and authorization with the developer while preserving the focused workflow built with Codex and GPT-5.6.
 
 ## Why Code Redox is built for this challenge
+
+### Stage-one baseline: a viable Codex-built developer tool
+
+Code Redox fits the **Developer Tools** track because it helps developers audit, prioritize, repair, and review software changes. It is packaged as a Windows NSIS installer, has reproducible source setup and automated tests, and provides a usable no-rebuild judge path. The required Codex and GPT-5.6 collaboration is documented below, with a `/feedback` session ID and dated commit history as evidence of hackathon-period work.
 
 ### Technological implementation
 
