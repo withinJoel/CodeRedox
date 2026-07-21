@@ -1420,3 +1420,23 @@ body { color: var(--fg); letter-spacing: -0.01em; }
 .repair-receipt.unavailable h2 { color: #4b4121; }
 .repair-receipt.unavailable p:not(.kicker) { margin: 5px 0 0; font-size: 12px; }
 @media (max-width: 760px) { .repair-receipt > header { display: grid; } .receipt-badge { justify-self: start; } .receipt-grid { grid-template-columns: 1fr; } }
+
+/* Decision Lens */
+.decision-lens { margin-top: 16px; overflow: hidden; border: 1px solid #c9d5eb; border-radius: 16px; background: #fff; box-shadow: 0 7px 22px rgb(40 62 112 / .08); }
+.decision-lens > header { padding: 19px 20px 16px; display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; color: #e9f0ff; background: radial-gradient(circle at 89% 14%, #829de999, transparent 30%), linear-gradient(135deg, #1d2b58, #405ca9); }
+.decision-lens h3 { margin: 3px 0 5px; color: #fff; font-size: 18px; }
+.decision-lens header p:not(.kicker) { max-width: 700px; margin: 0; color: #dce7ff; font-size: 11px; line-height: 1.5; }
+.decision-lens .kicker { color: #bbccff; }
+.decision-action { flex: 0 0 auto; padding: 7px 9px; border: 1px solid #ffffff4a; border-radius: 999px; color: #fff; background: #0915353d; font-size: 10px; font-weight: 750; white-space: nowrap; }
+.decision-action.high { border-color: #ffd3d399; background: #8c344b9c; }
+.decision-action.elevated { border-color: #ffe2a199; background: #8c632c9c; }
+.decision-grid { padding: 16px 19px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.decision-grid article { min-width: 0; min-height: 106px; padding: 13px; border: 1px solid #e1e7f3; border-radius: 10px; background: linear-gradient(145deg, #fff, #f8faff); }
+.decision-grid article > span { display: block; color: #66738d; font-size: 10px; font-weight: 700; }
+.decision-grid strong { display: block; margin-top: 7px; overflow-wrap: anywhere; color: #233667; font-size: 19px; line-height: 1.1; }
+.decision-grid strong small { margin-left: 3px; color: #71809c; font-size: 10px; font-weight: 650; }
+.decision-grid p { margin: 7px 0 0; color: #5c6982; font-size: 10px; line-height: 1.45; }
+.decision-grid code { color: #3654aa; font-size: 9px; overflow-wrap: anywhere; }
+.decision-lens footer { padding: 0 19px 17px; display: flex; gap: 6px; align-items: flex-start; color: #62708a; font-size: 10px; line-height: 1.45; }
+.decision-lens footer .icon { flex: 0 0 auto; margin-top: 1px; color: #4968bd; }
+@media (max-width: 760px) { .decision-lens > header { display: grid; } .decision-action { justify-self: start; } .decision-grid { grid-template-columns: 1fr; } }

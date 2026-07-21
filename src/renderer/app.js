@@ -434,4 +434,27 @@ rescueMarkup = function rescueMarkupWithRepairReceipt() {
   const content = rescueMarkupBeforeRepairReceipt();
   return state.repairReceipt ? `${content}${repairReceiptMarkup()}` : content;
 };
+function decisionContextFor(issue) {
+  const issues = allIssues();
+  const weight = rescueWeight[issue.type] || 3;
+  const ranked = [...issues].sort((left, right) => (rescueWeight[right.type] || 3) - (rescueWeight[left.type] || 3) || String(left.file).localeCompare(String(right.file)));
+  const rank = Math.max(1, ranked.findIndex(candidate => candidate.id === issue.id) + 1);
+  const fileFindings = issues.filter(candidate => candidate.file === issue.file).length;
+  const patternFindings = issues.filter(candidate => candidate.type === issue.type).length;
+  const group = state.project?.checks.find(check => check.id === issue.type)?.group || 'Code health';
+  const tier = weight >= 10 ? 'High' : weight >= 6 ? 'Elevated' : 'Focused';
+  const action = weight >= 10 ? 'Fix before release' : fileFindings >= 3 || patternFindings >= 4 ? 'Plan a focused cleanup' : 'Review context first';
+  const reason = weight >= 10 ? 'High-risk rules should be deliberately reviewed before shipping.' : fileFindings >= 3 ? 'Several live signals share this file, which raises the chance of a useful focused cleanup.' : 'The signal is localized; inspect intent before choosing a repair or ignore decision.';
+  return { weight, rank, fileFindings, patternFindings, group, tier, action, reason, release: rescueVerdict().title };
+}
+function decisionLensMarkup(issue) {
+  const data = decisionContextFor(issue);
+  return `<section class="decision-lens"><header><div><p class="kicker">DECISION LENS</p><h3>Evidence for the next call.</h3><p>${esc(data.reason)}</p></div><span class="decision-action ${data.tier.toLowerCase()}">${esc(data.action)}</span></header><div class="decision-grid"><article><span>Priority rank</span><strong>#${data.rank}<small> of ${allIssues().length}</small></strong><p>Ranked by the project’s published risk weights.</p></article><article><span>Risk tier</span><strong>${esc(data.tier)}</strong><p>${esc(data.group)} signal · weight ${data.weight}/14.</p></article><article><span>File pressure</span><strong>${data.fileFindings}<small> active</small></strong><p>Current findings in <code>${esc(issue.file)}</code>.</p></article><article><span>Pattern recurrence</span><strong>${data.patternFindings}<small> active</small></strong><p>Current ${esc(issue.type)} signals across this project.</p></article><article><span>Release posture</span><strong>${esc(data.release)}</strong><p>Based on the current Redox Index and high-risk signals.</p></article><article><span>Project health</span><strong>${qualityScore()}<small>/100</small></strong><p>Health score after all active checks are combined.</p></article></div><footer>${icon('book', 14)} Transparent heuristic: these are scan and repository signals—not proof of a defect. Confirm intent, then choose the smallest safe action.</footer></section>`;
+}
+const findingDetailBeforeDecisionLens = findingDetail;
+findingDetail = function findingDetailWithDecisionLens() {
+  const content = findingDetailBeforeDecisionLens();
+  const issue = filteredIssues().find(item => item.id === state.selectedIssueId);
+  return issue ? appendInsideLastSection(content, decisionLensMarkup(issue)) : content;
+};
 (async () => (await window.api.getAppState()).introSeen ? renderHome() : renderIntro())();
