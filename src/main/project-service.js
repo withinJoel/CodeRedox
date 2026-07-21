@@ -15,7 +15,7 @@ import { addLatestVersions, discoverPackages, managePackage } from './package-se
 import { deleteEmptyArtifact, findEmptyArtifacts } from './empty-artifact-service.js';
 
 const EXCLUDED = new Set(['node_modules', '.git', 'dist', 'build', '.next', 'coverage']);
-const SCAN_VERSION = 11;
+const SCAN_VERSION = 12;
 const AWARD_SOURCE_FILE = /\.(?:[cm]?js|jsx|tsx?|mjs|cjs|java|php|py|rb|go|rs|cs|swift|kt)$/i;
 const MAX_AWARD_FILE_BYTES = 2 * 1024 * 1024;
 const LANGUAGE_BY_EXTENSION = {
@@ -61,6 +61,11 @@ const CHECKS = [
   { id: 'insecure-http', label: 'Insecure HTTP', command: 'built-in', group: 'Security' },
   { id: 'sensitive-logging', label: 'Sensitive Logging', command: 'built-in', group: 'Security' },
   { id: 'command-injection', label: 'Command Injection', command: 'built-in', group: 'Security' },
+  { id: 'permissive-cors', label: 'Permissive CORS', command: 'built-in', group: 'Security' },
+  { id: 'prototype-pollution', label: 'Prototype Pollution', command: 'built-in', group: 'Security' },
+  { id: 'unsafe-file-uploads', label: 'Unsafe File Uploads', command: 'built-in', group: 'Security' },
+  { id: 'insecure-defaults', label: 'Insecure Defaults', command: 'built-in', group: 'Security' },
+  { id: 'predictable-identifiers', label: 'Predictable Identifiers', command: 'built-in', group: 'Security' },
   { id: 'unsafe-operations', label: 'Unsafe Operations', command: 'built-in', group: 'Runtime safety' },
   { id: 'unbounded-loops', label: 'Unbounded Loops', command: 'built-in', group: 'Runtime safety' },
   { id: 'package-integrity', label: 'Package Integrity', command: 'slop-scan', group: 'Runtime safety' },
@@ -141,6 +146,11 @@ export class ProjectService {
       'insecure-http': () => this.runCodeQuality(project, 'insecure-http'),
       'sensitive-logging': () => this.runCodeQuality(project, 'sensitive-logging'),
       'command-injection': () => this.runCodeQuality(project, 'command-injection'),
+      'permissive-cors': () => this.runCodeQuality(project, 'permissive-cors'),
+      'prototype-pollution': () => this.runCodeQuality(project, 'prototype-pollution'),
+      'unsafe-file-uploads': () => this.runCodeQuality(project, 'unsafe-file-uploads'),
+      'insecure-defaults': () => this.runCodeQuality(project, 'insecure-defaults'),
+      'predictable-identifiers': () => this.runCodeQuality(project, 'predictable-identifiers'),
       'unsafe-operations': () => this.runCodeQuality(project, 'unsafe-operations'),
       'unbounded-loops': () => this.runCodeQuality(project, 'unbounded-loops'),
       'package-integrity': () => this.runPackageIntegrity(project),

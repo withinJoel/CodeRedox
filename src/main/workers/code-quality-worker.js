@@ -41,6 +41,11 @@ function inspect(ruleName, lines) {
     case 'insecure-http': return findInsecureHttp(lines);
     case 'sensitive-logging': return findSensitiveLogging(lines);
     case 'command-injection': return findCommandInjection(lines);
+    case 'permissive-cors': return findPermissiveCors(lines);
+    case 'prototype-pollution': return findPrototypePollution(lines);
+    case 'unsafe-file-uploads': return findUnsafeFileUploads(lines);
+    case 'insecure-defaults': return findInsecureDefaults(lines);
+    case 'predictable-identifiers': return findPredictableIdentifiers(lines);
     case 'unsafe-operations': return findUnsafeOperations(lines);
     case 'unbounded-loops': return findUnboundedLoops(lines);
     case 'deprecated-apis': return findDeprecatedApis(lines);
@@ -287,6 +292,54 @@ function findCommandInjection(lines) {
     if (!/\b(?:exec|execSync|spawn|spawnSync|system|shell_exec|passthru)\s*\(/.test(source)) return [];
     if (!/\b(?:req|request)\.(?:query|params|body)|\b(?:userInput|commandInput|input)\b/i.test(source)) return [];
     return [{ line: index + 1, symbol: 'command', reason: 'Shell command construction appears to receive request or user-controlled input. Use an allowlist and pass fixed arguments without a shell.' }];
+  });
+}
+
+function findPermissiveCors(lines) {
+  return lines.flatMap((line, index) => {
+    const source = withoutLineComments(line);
+    if (/\b(?:cors|enableCors)\s*\(\s*\{[^}]*\borigin\s*:\s*['"]\*['"]|\bAccess-Control-Allow-Origin\s*['"],?\s*['"]\*['"]|\baccessControlAllowOrigin\s*[:=]\s*['"]\*['"]/i.test(source)) {
+      return [{ line: index + 1, symbol: 'CORS *', reason: 'Cross-origin access is open to every origin. Restrict CORS to the trusted application origins.' }];
+    }
+    return [];
+  });
+}
+
+function findPrototypePollution(lines) {
+  return lines.flatMap((line, index) => {
+    const source = withoutLineComments(line);
+    if (!/\b(?:Object\.assign|(?:_|lodash\.)?merge|deepMerge)\s*\(/.test(source)) return [];
+    if (!/\b(?:req|request)\.(?:body|query|params)\b|\buserInput\b/i.test(source)) return [];
+    return [{ line: index + 1, symbol: 'merge', reason: 'Object merge receives request-controlled data. Block __proto__, constructor, and prototype keys or use a safe schema before merging.' }];
+  });
+}
+
+function findUnsafeFileUploads(lines) {
+  return lines.flatMap((line, index) => {
+    const source = withoutLineComments(line);
+    if (!/\b(?:mv|move|writeFile|createWriteStream|rename)\s*\(/.test(source)) return [];
+    if (!/\b(?:req|request)\.(?:file|files)\b|\b(?:originalname|filename)\b/i.test(source)) return [];
+    return [{ line: index + 1, symbol: 'upload', reason: 'Uploaded file data or a client-supplied filename reaches filesystem storage. Validate type and size, generate a server-side filename, and keep uploads outside executable paths.' }];
+  });
+}
+
+function findInsecureDefaults(lines) {
+  return lines.flatMap((line, index) => {
+    const source = codeOnly(line);
+    if (/\b(?:isAdmin|admin|skipAuth|bypassAuth|allowAnonymous|disableAuth)\s*[:=]\s*true\b|\b(?:verify|validate|secure|enforceAuth)\s*[:=]\s*false\b/i.test(source)) {
+      return [{ line: index + 1, symbol: 'security default', reason: 'Security-sensitive setting defaults to an unsafe value. Require explicit opt-in for privileged access or disabled verification.' }];
+    }
+    return [];
+  });
+}
+
+function findPredictableIdentifiers(lines) {
+  return lines.flatMap((line, index) => {
+    const current = codeOnly(line);
+    const context = lines.slice(Math.max(0, index - 1), Math.min(lines.length, index + 2)).map(codeOnly).join(' ');
+    if (!/\b(?:Date\.now\s*\(|new\s+Date\s*\(\)\.getTime\s*\()/i.test(current)) return [];
+    if (!/(?:token|session|reset|invite|nonce|api[_-]?key|credential)/i.test(context)) return [];
+    return [{ line: index + 1, symbol: 'Date.now', reason: 'Time-based value appears to generate a security-sensitive identifier. Use cryptographically secure random bytes instead.' }];
   });
 }
 

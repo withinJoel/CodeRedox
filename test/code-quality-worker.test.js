@@ -212,3 +212,34 @@ test('does not flag strict equality, intentional noop, or command constants', as
   assert.equal(functions.length, 0);
   assert.equal(commands.length, 0);
 });
+
+test('finds five additional high-signal security patterns', async () => {
+  const source = `
+app.use(cors({ origin: '*' }));
+Object.assign(settings, req.body);
+req.files.avatar.mv(path.join(uploadDir, req.files.avatar.name));
+const skipAuth = true;
+const resetToken = Date.now().toString();
+`;
+  const [cors, pollution, uploads, defaults, identifiers] = await Promise.all([
+    scan('permissive-cors', source),
+    scan('prototype-pollution', source),
+    scan('unsafe-file-uploads', source),
+    scan('insecure-defaults', source),
+    scan('predictable-identifiers', source)
+  ]);
+  assert.deepEqual(cors.map(issue => issue.line), [2]);
+  assert.deepEqual(pollution.map(issue => issue.line), [3]);
+  assert.deepEqual(uploads.map(issue => issue.line), [4]);
+  assert.deepEqual(defaults.map(issue => issue.line), [5]);
+  assert.deepEqual(identifiers.map(issue => issue.line), [6]);
+});
+
+test('does not flag restricted CORS or ordinary timestamps', async () => {
+  const [cors, identifiers] = await Promise.all([
+    scan('permissive-cors', "app.use(cors({ origin: 'https://app.example.com' }));"),
+    scan('predictable-identifiers', 'const generatedAt = Date.now();')
+  ]);
+  assert.equal(cors.length, 0);
+  assert.equal(identifiers.length, 0);
+});
