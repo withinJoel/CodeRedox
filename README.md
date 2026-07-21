@@ -28,6 +28,7 @@ Open any repository, run an audit, inspect the exact files and lines involved, t
 - Produces a **Repair Receipt** after an approved Flight Plan runs: it compares the Git working-tree change set against the allowed scope and pairs that evidence with the fresh scan outcome. A clean baseline makes the receipt an isolated, reviewable proof of agent adherence.
 - Shows a **Decision Lens** on every finding: priority rank, risk tier, same-file pressure, repeated-pattern count, release posture, and project healthâ€”with the heuristic disclosed so developers can make an informed review decision.
 - Includes **Fix Ripple**, an interactive no-write simulation that previews how resolving one finding changes active findings, maintenance drag, high-risk signals, file pressure, and the next best focus before a user authorizes a repair.
+- Adds **Redox Gate**, a pre-merge passport for the current Git working tree: it maps changed files, intersects them with current scan findings, highlights sensitive surfaces, suggests the project’s verification route, and gives an explainable **Awaiting Diff / Hold / Review / Clear to Review** posture. It is intentionally evidence for a human merge decision—not a replacement for testing or review.
 - Audits supported dependency manifests, checks public registry versions, identifies duplicate declarations/capability overlap and apparent unused packages, and can update or uninstall packages from the UI.
 - Turns codebase superlatives into an interactive **Hall of Fame**: click an Award to spotlight the source structure, see nearby scan evidence, and jump to the relevant finding when action is warranted.
 - Offers a repository-aware **Codex chat** in read-only *Ask* mode or explicit write-authorized *Work* mode.
@@ -98,8 +99,9 @@ Electron Builder writes the release artifacts to `dist/`. Upload the generated `
 1. Install the release executable, launch Code Redox, and select this repository or another small Git repository.
 2. Let the initial analysis finish; browse **Overview** and **Findings**.
 3. Open a finding to see the file, line, reason, and—on Git-backed projects—its line-history commit and diff.
-4. Explore **Time Machine**, **Forecast**, **Packages**, and **Awards**.
-5. If Codex CLI is installed, select a low-risk finding such as whitespace or debug code and choose **Fix via Codex**. Watch the live activity and the automatic re-scan, then inspect the resulting diff in the target repository.
+4. Make a small local change, then open **Redox Gate** to see the Git diff, scan intersection, sensitive paths, and suggested human verification route.
+5. Explore **Time Machine**, **Forecast**, **Packages**, and **Awards**.
+6. If Codex CLI is installed, select a low-risk finding such as whitespace or debug code and choose **Fix via Codex**. Watch the live activity and the automatic re-scan, then inspect the resulting diff in the target repository.
 
 ### Judge-ready 60-second demo
 
@@ -107,7 +109,8 @@ Electron Builder writes the release artifacts to `dist/`. Upload the generated `
 2. Choose **Start live rescue** to capture the Redox Index, finding count, maintenance-drag estimate, and Git/forecast evidence.
 3. Show the **Ship Readiness Gate** and **One-Change Challenge**, then open the recommended finding.
 4. Choose **Create flight plan** to reveal the local blast-radius map, behavior contract, test route, and scope gates; then choose **Approve & run this plan**.
-5. Return to Rescue to show the **Repair Receipt**: plan adherence, changed files, and the verified re-scan outcome; then copy the **Team Handoff Brief**.
+5. Open **Redox Gate** to turn that resulting Git diff into a memorable pre-merge passport: diff map, linked scan evidence, release posture, and the verification route that still needs a human.
+6. Return to Rescue to show the **Repair Receipt**: plan adherence, changed files, and the verified re-scan outcome; then copy the **Team Handoff Brief**.
 
 This tells the full product story in one pass: find risk, understand its history, preview a safe AI repair, fix it with explicit constraints, and prove the outcome.
 

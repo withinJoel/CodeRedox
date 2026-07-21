@@ -98,6 +98,7 @@ ipcMain.handle('project:get-overview', (_event, projectId) => projects.getOvervi
 ipcMain.handle('project:get-time-machine', (_event, projectId) => projects.getTimeMachine(projectId));
 ipcMain.handle('project:get-evolution-forecast', (_event, projectId) => projects.getEvolutionForecast(projectId));
 ipcMain.handle('project:get-awards', (_event, projectId) => projects.getAwards(projectId));
+ipcMain.handle('project:get-merge-gate', (_event, projectId) => projects.getMergeGate(projectId));
 ipcMain.handle('project:manage-package', (_event, projectId, packageId, action) => projects.managePackage(projectId, packageId, action));
 ipcMain.handle('issue:delete-empty-artifact', (_event, projectId, issueId) => projects.deleteEmptyArtifact(projectId, issueId));
 ipcMain.handle('issue:format-with-prettier', (_event, projectId, issueId) => projects.formatWithPrettier(projectId, issueId));

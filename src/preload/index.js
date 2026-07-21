@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld("api", {
   getTimeMachine: (projectId) => ipcRenderer.invoke("project:get-time-machine", projectId),
   getEvolutionForecast: (projectId) => ipcRenderer.invoke("project:get-evolution-forecast", projectId),
   getAwards: (projectId) => ipcRenderer.invoke("project:get-awards", projectId),
+  getMergeGate: (projectId) => ipcRenderer.invoke("project:get-merge-gate", projectId),
   managePackage: (projectId, packageId, action) => ipcRenderer.invoke("project:manage-package", projectId, packageId, action),
   deleteEmptyArtifact: (projectId, issueId) => ipcRenderer.invoke("issue:delete-empty-artifact", projectId, issueId),
   formatWithPrettier: (projectId, issueId) => ipcRenderer.invoke("issue:format-with-prettier", projectId, issueId),

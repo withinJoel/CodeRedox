@@ -18,6 +18,7 @@ const EXCLUDED = new Set(['node_modules', '.git', 'dist', 'build', '.next', 'cov
 const SCAN_VERSION = 13;
 const AWARD_SOURCE_FILE = /\.(?:[cm]?js|jsx|tsx?|mjs|cjs|java|php|py|rb|go|rs|cs|swift|kt)$/i;
 const MAX_AWARD_FILE_BYTES = 2 * 1024 * 1024;
+const MAX_CONCURRENT_CHECKS = 4;
 const PRETTIER_EXTENSIONS = new Set(['js', 'mjs', 'cjs', 'jsx', 'ts', 'tsx', 'json', 'css', 'scss', 'less', 'html', 'vue', 'yaml', 'yml']);
 const LANGUAGE_BY_EXTENSION = {
   js: ['JavaScript', '#f1e05a'], mjs: ['JavaScript', '#f1e05a'], cjs: ['JavaScript', '#f1e05a'],
@@ -163,7 +164,7 @@ export class ProjectService {
     };
     let scanHadErrors = false;
     const activeChecks = CHECKS.filter(check => !project.disabledChecks.includes(check.id));
-    const resultPairs = await Promise.all(activeChecks.map(async check => {
+    const resultPairs = await mapWithConcurrency(activeChecks, MAX_CONCURRENT_CHECKS, async check => {
       this.progress(projectId, check.id, 'running');
       try {
         const issues = await runners[check.id]();
@@ -175,7 +176,7 @@ export class ProjectService {
         this.progress(projectId, check.id, 'error', 0, error.message);
         return [check.id, []];
       }
-    }));
+    });
     const resultMap = Object.fromEntries(resultPairs);
     const results = Object.fromEntries(CHECKS.map(check => [check.id, resultMap[check.id] || []]));
     const previousIds = new Set(activeChecks.flatMap(check => project.cached?.results?.[check.id] || []).map(issue => issue.id));
@@ -217,6 +218,82 @@ export class ProjectService {
     const [githubContributors, packages] = await Promise.all([getGitHubContributors(project.metadata.git.remote), discoverPackages(project.path, project.files)]);
     project.overview = { contributors: githubContributors.length ? githubContributors : project.metadata.git.contributors, packages: { count: packages.length, ecosystems: [...new Set(packages.map(item => item.ecosystem))] } };
     return project.overview;
+  }
+  async getMergeGate(projectId) {
+    const project = this.projects.get(projectId);
+    if (!project) throw new Error('Open the project before using Redox Gate.');
+    const git = simpleGit(project.path);
+    let status;
+    try { status = await git.status(); }
+    catch { return { available: false, reason: 'Redox Gate needs a Git working tree to inspect the current change set.' }; }
+
+    const [unstaged, staged] = await Promise.all([
+      git.raw(['diff', '--numstat']).catch(() => ''),
+      git.raw(['diff', '--cached', '--numstat']).catch(() => '')
+    ]);
+    const changed = new Map();
+    const collectNumstat = raw => raw.split(/\r?\n/).filter(Boolean).forEach(line => {
+      const [added, deleted, file] = line.split('\t');
+      if (!file) return;
+      const current = changed.get(file) || { file, additions: 0, deletions: 0, untracked: false };
+      current.additions += Number(added) || 0;
+      current.deletions += Number(deleted) || 0;
+      changed.set(file, current);
+    });
+    collectNumstat(unstaged);
+    collectNumstat(staged);
+    [...new Set([...(status.not_added || []), ...(status.created || [])])].forEach(file => {
+      const current = changed.get(file) || { file, additions: 0, deletions: 0, untracked: true };
+      current.untracked = true;
+      changed.set(file, current);
+    });
+    [...new Set([...(status.modified || []), ...(status.staged || []), ...(status.deleted || []), ...(status.renamed || []).flatMap(item => [item.from, item.to]).filter(Boolean)])].forEach(file => {
+      if (!changed.has(file)) changed.set(file, { file, additions: 0, deletions: 0, untracked: false });
+    });
+
+    const changedFiles = [...changed.values()].sort((left, right) => right.additions + right.deletions - (left.additions + left.deletions) || left.file.localeCompare(right.file));
+    const issues = Object.values(project.cached?.results || {}).flat();
+    const issueWeight = issue => gateRiskWeight(issue.type);
+    const relatedFindings = issues.filter(issue => changed.has(issue.file)).map(issue => ({
+      id: issue.id, file: issue.file, line: issue.line, endLine: issue.endLine, type: issue.type,
+      reason: issue.reason, weight: issueWeight(issue), blocking: issueWeight(issue) >= 10
+    })).sort((left, right) => right.weight - left.weight || left.file.localeCompare(right.file));
+    const blockingFindings = relatedFindings.filter(issue => issue.blocking);
+    const highRiskSurfaces = changedFiles.filter(item => /(?:^|[\\/_-])(?:auth|login|session|token|identity|credential|payment|billing|crypto|security|admin)(?:[\\/_-]|$)/i.test(item.file) || /(?:^|\/)(?:package(?:-lock)?\.json|pnpm-lock\.yaml|yarn\.lock|composer\.lock|cargo\.lock)$/i.test(item.file)).map(item => item.file);
+    const testCommands = await mergeGateCommands(project.path);
+    const changedLineCount = changedFiles.reduce((total, item) => total + item.additions + item.deletions, 0);
+    let statusName = 'CLEAR';
+    let title = 'Clear for human review';
+    let summary = 'The changed files have no high-risk scan signals. Review the diff and run the listed verification before merging.';
+    const reasons = [];
+    if (!changedFiles.length) {
+      statusName = 'AWAITING';
+      title = 'Awaiting a change set';
+      summary = 'There is no staged, unstaged, or untracked change for Redox Gate to evaluate yet.';
+      reasons.push('Make or stage a focused change, then refresh the gate.');
+    } else if (blockingFindings.length) {
+      statusName = 'HOLD';
+      title = 'Hold: high-risk evidence touches this diff';
+      summary = 'At least one changed file also has a high-risk static signal. Resolve or explicitly review that evidence before merge.';
+      reasons.push(`${blockingFindings.length} high-risk scan signal${blockingFindings.length === 1 ? '' : 's'} intersects the current diff.`);
+    } else if (relatedFindings.length || highRiskSurfaces.length || changedFiles.length > 8) {
+      statusName = 'REVIEW';
+      title = 'Review before merge';
+      summary = 'The diff intersects active scan evidence, a sensitive surface, or a broad change set. Keep review deliberate.';
+      if (relatedFindings.length) reasons.push(`${relatedFindings.length} active scan signal${relatedFindings.length === 1 ? '' : 's'} intersects changed files.`);
+      if (highRiskSurfaces.length) reasons.push(`${highRiskSurfaces.length} sensitive or dependency surface${highRiskSurfaces.length === 1 ? '' : 's'} changed.`);
+      if (changedFiles.length > 8) reasons.push(`${changedFiles.length} files changed; split the work if it is not one cohesive review.`);
+    } else {
+      reasons.push('No high-risk static signal intersects the current diff.');
+      if (changedLineCount) reasons.push(`${changedLineCount} changed line${changedLineCount === 1 ? '' : 's'} are visible in the working tree.`);
+    }
+    return {
+      available: true, status: statusName, title, summary, reasons, changedFiles, changedLineCount,
+      relatedFindings: relatedFindings.slice(0, 12), blockingFindings: blockingFindings.length,
+      highRiskSurfaces: highRiskSurfaces.slice(0, 8), testCommands,
+      branch: status.current || project.metadata.git.branch || 'Unknown branch',
+      hasStaged: Boolean((status.staged || []).length), generatedAt: new Date().toISOString()
+    };
   }
   async getAwards(projectId) {
     const project = this.projects.get(projectId);
@@ -955,6 +1032,26 @@ async function runProjectWorker(script, project, args, onLine) {
 }
 function timeMachinePriority(issue) {
   return ({ secrets: 8, 'sql-injection': 8, 'path-traversal': 8, 'xss-sinks': 8, 'unsafe-deserialization': 8, 'duplicate-code': 5, 'dead-code': 4, 'package-integrity': 4, 'logic-conditions': 4, 'error-handling': 4 }[issue.type] || 1);
+}
+function gateRiskWeight(type) {
+  return ({
+    secrets: 14, 'sql-injection': 13, 'path-traversal': 12, 'xss-sinks': 13, 'command-injection': 13,
+    'unsafe-file-uploads': 12, 'unsafe-deserialization': 11, 'tls-validation': 11, 'prototype-pollution': 11,
+    'unvalidated-redirects': 10, 'weak-cryptography': 10, 'insecure-randomness': 10, 'insecure-defaults': 10,
+    'logic-conditions': 8, 'error-handling': 8, 'unsafe-operations': 10, 'regex-dos': 10,
+    'package-integrity': 6, 'complex-logic': 7, 'broad-exception-handling': 7
+  }[type] || 3);
+}
+async function mergeGateCommands(root) {
+  const manifestPath = path.join(root, 'package.json');
+  try {
+    const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
+    const scripts = manifest.scripts || {};
+    const preferred = ['test', 'lint', 'typecheck', 'build'].filter(name => scripts[name]).map(name => `npm run ${name}`);
+    return preferred.length ? preferred : ['Review the Git diff', 'Run the project’s focused verification command'];
+  } catch {
+    return ['Review the Git diff', 'Run the project’s focused verification command'];
+  }
 }
 function recentFileChangeStats(logOutput) {
   const fileChanges = new Map();
