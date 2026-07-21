@@ -28,7 +28,7 @@ Open any repository, run an audit, inspect the exact files and lines involved, t
 - Shows a **Decision Lens** on every finding: priority rank, risk tier, same-file pressure, repeated-pattern count, release posture, and project healthâ€”with the heuristic disclosed so developers can make an informed review decision.
 - Includes **Fix Ripple**, an interactive no-write simulation that previews how resolving one finding changes active findings, maintenance drag, high-risk signals, file pressure, and the next best focus before a user authorizes a repair.
 - Audits supported dependency manifests, checks public registry versions, identifies duplicate declarations/capability overlap and apparent unused packages, and can update or uninstall packages from the UI.
-- Gives the codebase playful “Awards” to reveal its largest files/functions, most-commented areas, and debugging hotspots.
+- Turns codebase superlatives into an interactive **Hall of Fame**: click an Award to spotlight the source structure, see nearby scan evidence, and jump to the relevant finding when action is warranted.
 - Offers a repository-aware **Codex chat** in read-only *Ask* mode or explicit write-authorized *Work* mode.
 - Sends individual findings or all findings in one check to Codex using focused, generated task instructions; Code Redox streams progress and rescans afterward.
 

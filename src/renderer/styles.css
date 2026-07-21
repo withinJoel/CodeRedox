@@ -1478,3 +1478,64 @@ body { color: var(--fg); letter-spacing: -0.01em; }
 .fix-ripple.active footer { padding: 16px 21px 19px; display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; }
 .fix-ripple.active footer small { max-width: 510px; color: #667982; font-size: 10px; line-height: 1.45; }
 @media (max-width: 760px) { .fix-ripple.teaser { grid-template-columns: auto minmax(0, 1fr); } .btn-ripple { grid-column: 1 / -1; justify-self: start; } .fix-ripple.active > header { display: grid; grid-template-columns: auto minmax(0, 1fr); } .ripple-close { grid-column: 1 / -1; justify-self: start; } .ripple-metrics { grid-template-columns: 1fr; } }
+
+/* Hall of Fame */
+.award-ceremony { display: grid; gap: 17px; }
+.ceremony-hero { min-height: 230px; padding: 31px 34px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: center; overflow: hidden; border: 1px solid #30345d; border-radius: 20px; color: #f6f3ff; background: radial-gradient(circle at 12% 15%, #e6a8ff3d, transparent 24%), radial-gradient(circle at 84% 8%, #f7d47844, transparent 23%), linear-gradient(128deg, #191937, #343064 57%, #5b3558); box-shadow: 0 16px 40px rgb(37 24 71 / .18); }
+.ceremony-hero h1 { max-width: 750px; margin: 4px 0 8px; color: #fff; font-size: clamp(28px, 3.1vw, 42px); letter-spacing: -.035em; }
+.ceremony-hero p:not(.kicker) { max-width: 630px; margin: 0; color: #dedcf7; font-size: 13px; line-height: 1.6; }
+.ceremony-hero .kicker { color: #f5d69a; }
+.ceremony-stats { margin-top: 20px; display: flex; flex-wrap: wrap; gap: 8px; }
+.ceremony-stats span { padding: 6px 8px; border: 1px solid #ffffff2d; border-radius: 999px; color: #d9daf5; background: #ffffff0e; font-size: 10px; }
+.ceremony-stats b { color: #fff4cf; }
+.ceremony-trophy { width: 135px; min-height: 142px; display: grid; place-content: center; justify-items: center; gap: 4px; border: 1px solid #ffe6a964; border-radius: 19px; color: #f7d478; background: linear-gradient(150deg, #ffdc7a18, #ffffff0b); box-shadow: inset 0 0 32px #ffdc7a16; }
+.ceremony-trophy strong { color: #fff5c7; font-size: 39px; line-height: 1; }
+.ceremony-trophy small { color: #dedcf7; font-size: 8px; font-weight: 750; letter-spacing: .1em; }
+.award-spotlight { padding: 20px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto minmax(190px, .54fr); gap: 17px; align-items: center; border: 1px solid #e5d7a8; border-radius: 16px; background: radial-gradient(circle at 4% 0%, #fff5c9b0, transparent 32%), linear-gradient(120deg, #fffdf5, #fff); box-shadow: 0 5px 18px rgb(90 69 19 / .08); }
+.spotlight-medal { width: 51px; height: 51px; display: grid; place-items: center; border: 1px solid #e5be5f; border-radius: 16px; color: #8b5a00; background: #fff1b8; box-shadow: 0 5px 15px #c9941d26; }
+.spotlight-copy { min-width: 0; }
+.spotlight-copy .kicker { color: #8d620f; }
+.spotlight-copy h2 { margin: 3px 0 6px; color: #392c10; font-size: 21px; }
+.spotlight-copy > p:not(.kicker) { margin: 0; color: #6e6247; font-size: 12px; line-height: 1.5; }
+.spotlight-location { margin-top: 9px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.spotlight-location code { max-width: 330px; overflow: hidden; color: #705116; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.spotlight-location span { color: #796e55; font-size: 10px; }
+.spotlight-value { padding: 0 18px; display: grid; border-right: 1px solid #ede2bd; text-align: center; }
+.spotlight-value strong { color: #644407; font-size: 30px; line-height: 1; }
+.spotlight-value span { margin-top: 4px; color: #8a6d31; font-size: 10px; }
+.spotlight-evidence { min-width: 0; display: grid; gap: 7px; justify-items: start; }
+.award-health { display: inline-flex; gap: 5px; align-items: center; padding: 5px 7px; border-radius: 999px; font-size: 10px; font-weight: 750; }
+.award-health.clear { color: #176b3c; background: #dafbe1; }
+.award-health.watch { color: #8a5600; background: #fff1b8; }
+.award-health.risk { color: #a62c2b; background: #ffebe9; }
+.spotlight-evidence small, .award-no-finding { color: #756a53; font-size: 10px; line-height: 1.4; }
+.spotlight-evidence .btn { font-size: 10px; }
+.award-gallery { padding: 22px; border: 1px solid #e1e3ed; border-radius: 16px; background: #fff; }
+.award-gallery-head { margin-bottom: 15px; display: flex; justify-content: space-between; gap: 18px; align-items: end; }
+.award-gallery-head .kicker { color: #6b5ca7; }
+.award-gallery-head h2 { margin: 3px 0 0; color: #29234e; font-size: 21px; }
+.award-gallery-head > span { color: #6f7185; font-size: 10px; }
+.ceremony-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 11px; }
+.ceremony-card { min-width: 0; min-height: 177px; padding: 15px; display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto 1fr auto; gap: 8px 10px; border: 1px solid #e1e4ee; border-radius: 13px; color: inherit; background: #fff; text-align: left; transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease; }
+.ceremony-card:hover, .ceremony-card.selected { border-color: #8f7ada; box-shadow: 0 9px 20px rgb(74 57 146 / .13); transform: translateY(-2px); }
+.ceremony-card.selected { background: linear-gradient(145deg, #fbfaff, #f4f0ff); }
+.ceremony-card.tone-1 .award-medal { color: #b14570; background: #ffe9f1; }
+.ceremony-card.tone-2 .award-medal { color: #18766c; background: #dff8f3; }
+.ceremony-card.tone-3 .award-medal { color: #4c64b0; background: #e9efff; }
+.ceremony-card .award-medal { width: 29px; height: 29px; display: grid; place-items: center; border: 0; border-radius: 9px; color: #7c5709; background: #fff0b6; font-size: 10px; font-weight: 800; }
+.ceremony-card .award-card-head { min-width: 0; display: grid; gap: 3px; }
+.ceremony-card .award-card-head small { overflow: hidden; color: #74758a; font-size: 10px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.ceremony-card .award-card-head strong { overflow-wrap: anywhere; color: #29234e; font-size: 21px; line-height: 1; }
+.ceremony-card .award-card-head em { color: #77758e; font-size: 10px; font-style: normal; font-weight: 650; }
+.ceremony-card .award-description { grid-column: 1 / -1; align-self: start; color: #5d6074; font-size: 10px; line-height: 1.45; }
+.award-card-foot { grid-column: 1 / -1; display: flex; justify-content: space-between; gap: 7px; align-items: center; }
+.award-card-foot code { min-width: 0; overflow: hidden; color: #5763a1; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.award-card-foot b { padding: 3px 5px; border-radius: 999px; font-size: 9px; }
+.award-card-foot b.clear { color: #176b3c; background: #dafbe1; }
+.award-card-foot b.watch { color: #8a5600; background: #fff1b8; }
+.award-card-foot b.risk { color: #a62c2b; background: #ffebe9; }
+.ceremony-note { display: flex; gap: 6px; align-items: flex-start; padding: 0 5px 4px; color: #697085; font-size: 10px; line-height: 1.45; }
+.ceremony-note .icon { flex: 0 0 auto; color: #7869b7; }
+.ceremony-loading { min-height: 310px; }
+@media (max-width: 960px) { .award-spotlight { grid-template-columns: auto minmax(0, 1fr); } .spotlight-value, .spotlight-evidence { grid-column: 2; padding-left: 0; border: 0; text-align: left; } .ceremony-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .ceremony-hero { grid-template-columns: 1fr; } .ceremony-trophy { display: none; } .award-spotlight { grid-template-columns: auto minmax(0, 1fr); } .spotlight-value, .spotlight-evidence { grid-column: 1 / -1; } .ceremony-grid { grid-template-columns: 1fr; } .award-gallery-head { display: grid; } }
