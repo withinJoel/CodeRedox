@@ -45,7 +45,7 @@
 
 /* Keep repository controls fixed and confine scrolling to the content panes. */
 .repo { height: calc(100vh - 48px); min-height: 0; display: grid; grid-template-rows: 67px 48px minmax(0, 1fr); overflow: hidden; }
-.repo-context, .repo-tabs { position: static; }
+.repo-context { position: static; }
 .tab-layout { height: 100%; min-height: 0; margin: 0 auto; padding: 24px 0; align-items: stretch; overflow: hidden; }
 .tab-main { min-height: 0; overflow: auto; scrollbar-gutter: stable; }
 .tab-layout > .about-box { min-height: 0; max-height: 100%; align-self: stretch; overflow: auto; }
@@ -110,3 +110,70 @@
   .tab-layout { width: min(100% - 40px, 960px); }
 }
 @media (max-width: 760px) { .redox-moment { align-items: flex-start; } .redox-moment-score { min-width: 112px; } }
+
+/* GitHub light palette: keep product actions green and use GitHub neutrals. */
+.forecast-empty > .icon,
+.forecast-summary strong,
+.forecast-evidence strong { color: #1a7f37; }
+.forecast-hero { border-color: #1a7f3755; background: linear-gradient(135deg, #dafbe1, #fff 65%); }
+.forecast-summary { border-color: #1a7f3744; }
+.forecast-card { border-left-color: #1f883d; }
+.forecast-evidence { border-color: #1a7f3733; background: #f6fff8; }
+
+.codex-chat-hero { border-color: #d0d7de; background: linear-gradient(135deg, #f6f8fa, #fff 65%); }
+.chat-mode-switch { border-color: #d0d7de; }
+.chat-mode-switch button.selected,
+.codex-chat-live { color: #1a7f37; background: #dafbe1; }
+.chat-mode-switch small { border-top-color: #d8dee4; }
+.chat-message.user { background: #1f883d; }
+.chat-message.user strong { color: #dafbe1; }
+.codex-chat-live { border-color: #1a7f3755; }
+.chat-composer textarea:focus { border-color: #1f883d; box-shadow: 0 0 0 3px #1f883d33; }
+
+.modern-chat-head { border-color: #d0d7de; background: radial-gradient(circle at 87% 20%, #dafbe1, transparent 24%), linear-gradient(135deg, #fff, #f6f8fa); }
+.chat-assistant-avatar,
+.message-avatar { background: #24292f; }
+.chat-assistant-avatar { box-shadow: 0 3px 8px rgb(31 35 40 / .2); }
+.modern-chat-head h1 { color: #1f2328; }
+.modern-mode-switch { background: #f6f8fa; }
+.modern-mode-switch button.selected { color: #1f2328; box-shadow: 0 1px 3px rgb(31 35 40 / .12); }
+.chat-thread { border-color: #d0d7de; background: linear-gradient(180deg, #fff, #f6f8fa); }
+.modern-message.user .message-avatar { color: #1a7f37; background: #dafbe1; }
+.modern-message p { color: #1f2328; background: #f6f8fa; }
+.modern-message.user p { background: #1f883d; }
+.chat-suggestions button { border-color: #d0d7de; color: #1a7f37; }
+.chat-suggestions button:hover { border-color: #1a7f37; background: #dafbe1; }
+.modern-chat-activity { border-color: #d0d7de; background: #f6f8fa; }
+.modern-chat-activity summary { color: #1a7f37; }
+.modern-chat-activity pre { color: #1f2328; background: #fff; border-top-color: #d8dee4; }
+.modern-composer { border-color: #d0d7de; box-shadow: 0 3px 8px rgb(140 149 159 / .15); }
+
+.redox-moment { border-color: #57606a; background: #24292f; box-shadow: 0 8px 24px rgb(31 35 40 / .2); }
+.redox-moment-glow { background: #57606a55; }
+.redox-moment .kicker,
+.redox-moment-score span,
+.redox-moment-score small { color: #8c959f; }
+.redox-moment p:not(.kicker) { color: #c9d1d9; }
+.btn-redox { color: #1f2328; }
+.btn-redox:hover { background: #f6f8fa; }
+.btn-redox-secondary { border-color: #ffffff55; color: #f0f6fc; }
+.redox-moment-score i b { background: #3fb950; }
+
+.overview-hero { border-color: #d0d7de; background: radial-gradient(circle at 88% 10%, #ddf4ff, transparent 26%), linear-gradient(135deg, #fff, #f6f8fa); }
+.overview-hero h1,
+.finding-detail-head h2,
+.finding-list-head h2 { color: #1f2328; }
+.score-card { border-color: #d0d7de; box-shadow: 0 3px 8px rgb(140 149 159 / .2); }
+.score-card strong,
+.finding-summary strong,
+.content-stats strong { color: #1a7f37; }
+.overview-card:hover,
+.time-machine-card:hover,
+.forecast-card:hover,
+.award-card:hover { border-color: #8c959f; }
+.finding-nav-item:hover,
+.finding-list-item:hover,
+.check:hover { background: #f6f8fa; }
+.finding-nav-item.selected,
+.check.selected { border-left-color: #1f883d; background: #dafbe1; }
+.line-number { color: #1a7f37; background: #dafbe1; }
