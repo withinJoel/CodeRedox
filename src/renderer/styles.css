@@ -1221,6 +1221,65 @@ body { color: var(--fg); letter-spacing: -0.01em; }
 .finding-detail { padding: 30px; }
 .finding-detail-head h2, .finding-list-head h2 { color: #20294d; }
 .line-number { color: #1a7f37; background: #dafbe1; }
+
+/* Contextual guidance keeps dense analysis views actionable without hiding the evidence. */
+.intro-notes, .home-steps, .opening-steps { display: flex; flex-wrap: wrap; gap: 8px; }
+.intro-notes { max-width: 570px; margin: -5px 0 22px; }
+.intro-notes span, .opening-steps span { display: inline-flex; align-items: center; gap: 5px; padding: 5px 8px; border: 1px solid #d0d7de; border-radius: 2em; color: #57606a; background: #fff; font-size: 10px; font-weight: 650; }
+.home-steps { margin: 20px 0; }
+.home-steps span { color: #57606a; font-size: 11px; }
+.home-steps b { width: 18px; height: 18px; margin-right: 4px; display: inline-grid; place-items: center; border-radius: 50%; color: #fff; background: #1f883d; font-size: 10px; }
+.home-note { display: block; max-width: 500px; margin-top: 11px; color: #57606a; font-size: 10px; line-height: 1.5; }
+.empty-recent { display: grid; gap: 5px; line-height: 1.45; }
+.empty-recent span { color: #57606a; font-size: 11px; }
+.opening-steps { justify-content: center; margin-top: 16px; }
+.context-guide, .package-guide, .action-playbook, .finding-guide, .chat-guide { border: 1px solid #d0d7de; border-radius: 14px; background: #fff; box-shadow: var(--shadow); }
+.context-guide { margin-bottom: 16px; padding: 20px 22px; background: linear-gradient(135deg, #f6f8fa, #fff); }
+.context-guide h2, .package-guide h2, .playbook-heading h2 { margin: 3px 0 7px; color: #1f2328; font-size: 18px; letter-spacing: -.025em; }
+.context-guide > p:not(.kicker), .package-guide p, .playbook-heading > p { max-width: 760px; margin: 0; color: #57606a; font-size: 11px; line-height: 1.55; }
+.context-guide > div { margin: 14px 0 11px; display: flex; flex-wrap: wrap; gap: 7px; }
+.context-guide > div span { display: inline-flex; align-items: center; gap: 5px; padding: 5px 7px; border-radius: 5px; color: #1a7f37; background: #dafbe1; font-size: 10px; font-weight: 650; }
+.context-guide small { color: #57606a; font-size: 10px; }
+.action-playbook { padding: 23px; background: linear-gradient(135deg, #f6fff8, #fff 62%); }
+.playbook-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.playbook-heading > span { padding: 5px 8px; border-radius: 2em; color: #1a7f37; background: #dafbe1; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.playbook-steps { margin-top: 17px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.playbook-steps article { min-width: 0; padding: 12px; border: 1px solid #d8dee4; border-radius: 9px; background: #fff; }
+.playbook-steps b { width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; color: #fff; background: #1f883d; font-size: 10px; }
+.playbook-steps p { margin: 9px 0 0; color: #57606a; font-size: 11px; line-height: 1.5; }
+.playbook-notes { margin-top: 14px; display: grid; gap: 4px; color: #57606a; font-size: 10px; line-height: 1.45; }
+.playbook-notes strong { color: #1f2328; }
+.package-guide { margin-top: 16px; padding: 22px; display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: 24px; background: linear-gradient(135deg, #fff8c5, #fff 62%); }
+.package-guide > div:last-child { display: grid; gap: 8px; }
+.package-guide span { padding: 9px 10px; border-left: 3px solid #bf8700; color: #57606a; background: #fff; font-size: 10px; line-height: 1.45; }
+.package-guide b { color: #1f2328; }
+.finding-guide { margin-top: 14px; padding: 13px 15px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 10px; align-items: start; background: #f6f8fa; }
+.finding-guide > .icon { margin-top: 2px; color: #1a7f37; }
+.finding-guide strong { color: #1f2328; font-size: 11px; }
+.finding-guide p { margin: 3px 0 0; color: #57606a; font-size: 10px; line-height: 1.5; }
+.finding-guide ol { grid-column: 2; margin: 1px 0 0; padding-left: 17px; color: #57606a; font-size: 10px; line-height: 1.5; }
+.detail-guide { padding: 15px 17px; }
+.detail-guide ol { display: grid; gap: 5px; margin-top: 3px; }
+.readiness-card .muted-copy, .reading-path-card .muted-copy { min-height: 31px; }
+.overview-card-head > .ready { color: #1a7f37; background: #dafbe1; }
+.overview-card-head > .watch { color: #9a6700; background: #fff8c5; }
+.readiness-list { margin-top: 12px; display: grid; }
+.readiness-list div { min-width: 0; padding: 7px 0; display: grid; grid-template-columns: 8px 74px minmax(0, 1fr); gap: 7px; align-items: center; border-top: 1px solid var(--border-muted); font-size: 10px; }
+.readiness-list i { width: 7px; height: 7px; border-radius: 50%; }
+.readiness-list i.ready { background: #1a7f37; }
+.readiness-list i.watch { background: #bf8700; }
+.readiness-list span { color: #57606a; font-weight: 650; }
+.readiness-list b { overflow: hidden; color: #1f2328; font-weight: 600; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+.reading-path { margin: 12px 0 0; padding: 0; display: grid; gap: 8px; list-style: none; counter-reset: reading-step; }
+.reading-path li { min-width: 0; display: grid; grid-template-columns: 21px minmax(0, 1fr); gap: 2px 8px; counter-increment: reading-step; }
+.reading-path li::before { width: 20px; height: 20px; grid-row: 1 / 3; display: grid; place-items: center; border-radius: 50%; color: #1a7f37; background: #dafbe1; content: counter(reading-step); font-size: 9px; font-weight: 750; }
+.reading-path b { color: #1f2328; font-size: 10px; }
+.reading-path span { color: #57606a; font-size: 10px; line-height: 1.42; }
+.reading-path code { font: 9px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.chat-guide { margin-top: 14px; padding: 13px 16px; display: grid; gap: 5px; color: #57606a; font-size: 10px; line-height: 1.5; }
+.chat-guide strong { color: #1f2328; font-size: 11px; }
+.chat-guide b { color: #1a7f37; }
+@media (max-width: 760px) { .playbook-steps, .package-guide { grid-template-columns: 1fr; } .playbook-heading { display: grid; } }
 .packages-head, .finding-list-head { background: linear-gradient(180deg, #fff, #fbfcff); }
 .package-row { transition: background 150ms ease; }
 .package-row:not(.package-columns):hover { background: #fafbff; }
