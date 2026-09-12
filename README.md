@@ -4,7 +4,7 @@
 
 **Hackathon track:** Developer Tools<br>
 **Platform:** Windows 10/11 (64-bit)<br>
-**Built with:** Electron, Node.js, **Codex**, and **GPT-5.6**.
+**Built with:** Electron, Node.js.
 
 [Download the Windows installer](https://github.com/withinJoel/CodeRedox/releases) · [Report an issue](https://github.com/withinJoel/CodeRedox/issues)
 
