@@ -173,8 +173,6 @@ Most linters answer, “What is wrong here?” Most AI coding tools answer, “W
 
 Its differentiator is the evidence-to-repair-to-proof loop: a local scan informs a Flight Plan; the user approves a constrained Codex task; the app re-scans, examines the Git change set, and presents a Repair Receipt and pre-merge Gate. Forecasts and Fix Ripple make the planning layer proactive, while Time Machine supplies the historical context usually missing from code-quality tools. The goal is not to replace developer judgment with AI, but to make that judgment faster and better informed.
 
-> **Codex feedback session:** 019f7ae4-892a-7aa1-8915-cb685a145493
-
 ## Architecture
 
 ```text
