@@ -18,7 +18,7 @@
     "jscpd": "^4.0.5",
     "knip": "^5.67.0",
     "linguist-js": "^2.9.2",
-    "markdown-it": "^14.1.0",
+    "markdown-it": "^14.3.3",
     "prettier": "^3.9.6",
     "sanitize-html": "^2.17.7",
     "shiki": "^3.12.2",
